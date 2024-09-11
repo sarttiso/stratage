@@ -19,8 +19,8 @@ class Geochron:
         Attributes:
             h (list): Sorted list of stratigraphic heights.
             rv (list): Sorted list of random variables representing the temporal constraints.
-            _n_constraints (int): Number of constraints.
-            _n_pairs (int): Number of pairs of constraints.
+            n_constraints (int): Number of constraints.
+            n_pairs (int): Number of pairs of constraints.
             _t_max (float): Maximum time to resolve
             _t_min (float): Minimum time to resolve
             _dt (float): Time spacing for computing the time increment pdfs.
@@ -34,7 +34,7 @@ class Geochron:
         self.rv = rv
         self.dt = dt
 
-        self._n_constraints = len(self.h)
+        self.n_constraints = len(self.h)
 
         # sort the heights and random variable representations
         sort_idx = np.argsort(self.h)
@@ -82,7 +82,7 @@ class Geochron:
                 lower_idx.append(ii)
         self.lower_idx = lower_idx
         self.upper_idx = upper_idx
-        self._n_pairs = len(self.lower_idx)
+        self.n_pairs = len(self.lower_idx)
 
     def model_weights(self, unit_heights):
         """
@@ -104,11 +104,11 @@ class Geochron:
         n_units = unit_heights.shape[0]
         n_contacts = n_units - 1
         # initialize
-        alpha = np.zeros((n_units, self._n_pairs))
-        beta = np.zeros((n_contacts, self._n_pairs))
+        alpha = np.zeros((n_units, self.n_pairs))
+        beta = np.zeros((n_contacts, self.n_pairs))
 
         # loop over pairs of constraints (see notes  from 12/16/2020 for motivation of this code)
-        for ii in range(self._n_pairs):
+        for ii in range(self.n_pairs):
             pair_top = self.h[self.upper_idx[ii]]
             pair_bottom = self.h[self.lower_idx[ii]]
             # units
@@ -123,7 +123,7 @@ class Geochron:
                 alpha[jj, ii] = frac
 
         # finally scale alpha by the thickness of the unit
-        alpha = alpha * np.tile(unit_thicks, (self._n_pairs, 1)).T
+        alpha = alpha * np.tile(unit_thicks, (self.n_pairs, 1)).T
 
         # contacts
         for ii in range(n_contacts):
@@ -146,7 +146,7 @@ class Geochron:
         # get temporal bounds for each constraint that constrain given thresholds of probability (so we ignore times of zero probability)
         rv_t = []   # list of time grids for each constraint
         rv_pdf = []  # list of pdfs for each constraint
-        for ii in range(self._n_constraints):
+        for ii in range(self.n_constraints):
             # indices in self.t1 that contain the probability mass for the given constraint
             cur_up_bnd = self.rv[ii].ppf(1-self.prob_threshold)
             cur_low_bnd = self.rv[ii].ppf(self.prob_threshold)
@@ -154,19 +154,24 @@ class Geochron:
             rv_t.append(self._t[cur_idx])
             rv_pdf.append(self.rv[ii].pdf(self._t[cur_idx]))
 
-        DTs = []
-        ys = []
-        for ii in tqdm.tqdm(range(self._n_pairs),
+        pdts = []
+        dts = []
+        for ii in tqdm.tqdm(range(self.n_pairs),
                             desc='Constructing time increment pdfs...'):
-            DT, y = self._pairwise_increment_pdf(rv_t[self.lower_idx[ii]],
-                                                 rv_pdf[self.lower_idx[ii]],
-                                                 rv_t[self.upper_idx[ii]],
-                                                 rv_pdf[self.upper_idx[ii]])
-            DTs.append(DT)
-            ys.append(y)
+            pdt, dt = self._pairwise_increment_pdf(rv_t[self.lower_idx[ii]],
+                                                   rv_pdf[self.lower_idx[ii]],
+                                                   rv_t[self.upper_idx[ii]],
+                                                   rv_pdf[self.upper_idx[ii]])
+            pdts.append(pdt)
+            dts.append(dt)
 
-        self.DT = DTs
-        self.y = ys
+        self.pdts = pdts
+        self.dts = dts
+        # assign maximum likelihood for each pair of constraints
+        self.dts_max = [self.dts[ii][np.argmax(self.pdts[ii])]
+                        for ii in range(self.n_pairs)]
+        # shift the time increment pdfs to be centered around the maximum likelihood
+        # self.y
 
     def _pairwise_increment_pdf(self, t1, p1, t2, p2):
         """For a pair of constraints, numerically evaluate the time increment pdf.
@@ -187,7 +192,7 @@ class Geochron:
         l2, u2 = np.min(t2), np.max(t2)
 
         # vector of time increments for the pair of constraints
-        y = np.arange(np.max([l2-u1, 0]), u2-l1, self._dt)
+        dt = np.arange(np.max([l2-u1, 0]), u2-l1, self._dt)
 
         # make time grid for current pair of constraints
         T1, T2 = np.meshgrid(t1, t2)
@@ -203,20 +208,20 @@ class Geochron:
         #     # impose stratigraphic superposition while computing time increment pdf (first term)
         #     idx = (T2 > T1) & (T2 < T1+cur_y)
         #     DT[ii] = np.sum(PJ[idx])
-        idx = np.tile(T2 > T1, (len(y), 1, 1)) & \
-            (np.tile(T2, (len(y), 1, 1)) < (np.tile(T1, (len(y), 1, 1)) +
-                                            np.reshape(y, (-1, 1, 1))))
+        idx = np.tile(T2 > T1, (len(dt), 1, 1)) & \
+            (np.tile(T2, (len(dt), 1, 1)) < (np.tile(T1, (len(dt), 1, 1)) +
+                                             np.reshape(dt, (-1, 1, 1))))
         # evaluate cumulative increment function here
-        CDT = np.sum(PJ*idx, axis=(1, 2))
+        cdt = np.sum(PJ*idx, axis=(1, 2))
 
         # normalize correctly (CDF should sum to one, the max)
-        CDT = CDT/np.max(CDT)
+        cdt = cdt/np.max(cdt)
         # make into pdf
-        DT = np.diff(CDT)/self._dt
+        pdt = np.diff(cdt)/self._dt
     #     cur_y = cur_y[0:-1]+dt/2 # centered difference
-        y = y[0:-1]  # left difference
+        dt = dt[0:-1]  # left difference
 
-        return DT, y
+        return pdt, dt
 
     def _pairwise_difference_rv(self, rv_t, rv_pdf, ii):
         """
@@ -271,7 +276,7 @@ class Geochron:
         # get temporal bounds for each constraint that constrain given thresholds of probability (so we ignore times of zero probability)
         rv_t = []
         rv_pdf = []
-        for ii in tqdm.tqdm(range(self._n_constraints), desc='Constructing time increment cdfs...'):
+        for ii in tqdm.tqdm(range(self.n_constraints), desc='Constructing time increment cdfs...'):
             # indices in self.t1 that contain the probability mass for the given constraint
             cur_up_bnd = self.rv[ii].ppf(1-self.prob_threshold)
             cur_low_bnd = self.rv[ii].ppf(self.prob_threshold)
@@ -286,13 +291,13 @@ class Geochron:
 
         # parallel case
 #         pool = Pool()
-#         out = list(tqdm.tqdm(pool.imap(partial_pairwise_difference_rv, range(self._n_pairs), chunksize=5), total=self._n_pairs, desc='Constructing time increment cdfs...'))
-# #         DT = pool.map(partial_pairwise_difference_rv, range(self._n_pairs))
+#         out = list(tqdm.tqdm(pool.imap(partial_pairwise_difference_rv, range(self.n_pairs), chunksize=5), total=self.n_pairs, desc='Constructing time increment cdfs...'))
+# #         DT = pool.map(partial_pairwise_difference_rv, range(self.n_pairs))
 #         pool.close()
 
         # serial case
         out = []
-        for ii in tqdm.tqdm(range(self._n_pairs), desc='Constructing time increment cdfs...'):
+        for ii in tqdm.tqdm(range(self.n_pairs), desc='Constructing time increment cdfs...'):
             out.append(partial_pairwise_difference_rv(ii))
 
         DT = [x[0] for x in out]
@@ -311,7 +316,7 @@ class Geochron:
         """
 
         idx = []
-        for ii in range(self._n_pairs):
+        for ii in range(self.n_pairs):
             if self.h[self.lower_idx[ii]] < height < self.h[self.upper_idx[ii]]:
                 idx.append(ii)
         idx = np.asarray(idx)
@@ -323,6 +328,8 @@ class Geochron:
         Plot the geochronologic constraints.
         Args:
             ax (matplotlib.axes.Axes): The axes on which to plot the constraints. If None, a new figure is created.
+            tol (int): The number of orders of magnitude below the maximum pdf value to plot.
+            scale (float): The scale factor for the pdfs.
         Returns:
             matplotlib.axes.Axes: The axes on which the constraints are plotted.
         """
@@ -331,7 +338,7 @@ class Geochron:
             ax.set_xlabel('Time')
             ax.set_ylabel('Height')
 
-        for ii in range(self._n_constraints):
+        for ii in range(self.n_constraints):
             cur_pdf = self.rv[ii].pdf(self._t)
             # only plot the part of the pdf that matters
             idx_pdf = np.log10(cur_pdf) > (np.max(np.log10(cur_pdf)) - tol)
@@ -346,5 +353,37 @@ class Geochron:
                                     linewidth=1,
                                     alpha=0.7,
                                     color='lightgrey')
+
+        return ax
+
+    def plot_increment_pdfs(self, ax=None, tol=3, scale=1):
+        """
+        Plot the time increment pdfs.
+        Args:
+            ax (matplotlib.axes.Axes): The axes on which to plot the increment pdfs. If None, a new figure is created.
+        Returns:
+            matplotlib.axes.Axes: The axes on which the increment pdfs are plotted.
+        """
+        if ax is None:
+            fig, ax = plt.subplots()
+            ax.set_xlabel('Time Increment')
+            ax.set_ylabel('Pair Index')
+
+        for ii in range(self.n_pairs):
+            cur_pair_label = f'lower: {self.h[self.lower_idx[ii]]}, upper: {self.h  [self.upper_idx[ii]]}'
+            cur_pdf = self.pdts[ii]
+            min_dt = np.min([np.min(x) for x in self.dts])
+            max_dt = np.max([np.max(x) for x in self.dts])
+            pdf_scale = scale/(np.max(cur_pdf) - np.min(cur_pdf))
+            cur_pdf = ii + pdf_scale * cur_pdf
+            ax.fill_between(self.dts[ii],
+                            cur_pdf,
+                            ii,
+                            linewidth=1,
+                            alpha=0.7,
+                            color='lightgrey')
+            ax.text(min_dt, ii, cur_pair_label, fontsize=8, ha='left')
+        ax.set_yticks(np.arange(self.n_pairs))
+        ax.set_xlim([min_dt, max_dt])
 
         return ax
