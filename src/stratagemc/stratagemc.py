@@ -192,7 +192,7 @@ def DT_logp_l_gen(pdt):
 
 
 def floating_age(sed_rates, hiatuses, units, heights):
-    """Floating ages at heights in strat. Assumes t=0 at base of section. Cannot be evaluated at unit contacts. 
+    """Floating ages at heights in strat. Assumes t=0 at base of section. Times at contact heights are returned as the age of the top of the unit below the contact.
 
     Args:
         sed_rates (arraylike): Sedimentation rates for each unit.
@@ -203,21 +203,37 @@ def floating_age(sed_rates, hiatuses, units, heights):
     Returns:
         array: Age(s) at the given height(s).
     """
-    heights = np.atleast_1d(heights)
-    n_heights = len(heights)
-    # check that heights are not at contacts
-    assert ~np.any(np.isin(heights, units[1:-1])), 'heights cannot be at contacts'
     # floating age model
     times = get_times(sed_rates, hiatuses, units)
-    # print(times)
+
+    return age(times, units, heights)
+
+
+def age(times, units, heights):
+    """Interpolate time at given heights in strat. Times at contact heights are returned as the age of the top of the unit below the contact.
+
+    Args:
+        times (arraylike): nx2 array of unit bottom and top times for n units.
+        units (arraylike): nx2 array of unit bottom and top heights for n units.
+        heights (arraylike): Height(s) at which to evaluate the age model.
+
+    Returns:
+        array: Age(s) at the given height(s).
+    """
+    heights = np.atleast_1d(heights)
+    n_heights = len(heights)
+    # confirm that heights are within units
+    assert np.all((heights >= units[0, 0]) & (
+        heights <= units[-1, 1])), 'heights must be within units'
     # evaluate cumulative time at height
     ages = np.zeros(n_heights)
+    # indices into units and times of each height
+    idxs = np.argmax((heights.reshape(-1, 1) >= units[:, 0]) &
+                     (heights.reshape(-1, 1) <= units[:, 1]), axis=1)
+    idxs = np.atleast_1d(idxs)
     for ii, height in enumerate(heights):
         # otherwise linearly interpolate sed rate in the unit
-        unit_idx = np.argwhere((height >= units[:, 0]) & (height <= units[:, 1]))
-        # print(unit_idx)
-        ages[ii] = times[unit_idx, 0] + \
-            (height - units[unit_idx, 0])/sed_rates[unit_idx]
+        ages[ii] = np.interp(height, units[idxs[ii], :], times[idxs[ii], :])
     return ages.squeeze()
 
 
@@ -234,6 +250,9 @@ def fit_floating_model(sed_rates, hiatuses, units, geochron, tol=1e-6):
     Returns:
         ndarray: nx2 array of unit bottom and top ages for n units in absolute time
     """
+    # check that geochron heights are not at contacts
+    assert ~np.any(np.isin(geochron.h, units[1:-1])), 'heights cannot be at contacts'
+
     # floating age model
     geochron_float_ages = floating_age(sed_rates, hiatuses, units, geochron.h)
 
@@ -279,13 +298,19 @@ def age_depth(units, times):
     return t, z
 
 
-def agemodel_ls(units, geochron,
-                sed_rate_bounds=[1e-1, 1e2], hiatus_bounds=[1e-1, 1e3]):
+def model_ls(units, geochron,
+             sed_rate_bounds=None,
+             hiatus_bounds=None):
     """Least squares age model fitting.
 
     Args:
         units (ndarray): nx2 array of unit bottom and top heights for n units.
         geochron (geochron.Geochron): Geochron object containing geochron constraints.
+        sed_rate_bounds (list, optional): Bounds on sedimentation rates. Defaults to None.
+        hiatus_bounds (list, optional): Bounds on hiatuses. Defaults to None.
+    Returns:
+        ndarray: Sedimentation rates for each unit.
+        ndarray: Hiatuses between units.
     """
     alpha, beta = geochron.model_weights(units)
     # model matrix
@@ -294,6 +319,12 @@ def agemodel_ls(units, geochron,
 
     n_units = units.shape[0]
     n_contacts = n_units - 1
+
+    # set defaults for bounds
+    if sed_rate_bounds is None:
+        sed_rate_bounds = [1e-1, 1e2]
+    if hiatus_bounds is None:
+        hiatus_bounds = [1e-1, 1e3]
 
     # bounds on model parameters
     lower_bounds = np.zeros(n_units+n_contacts)
@@ -315,6 +346,15 @@ def agemodel_ls(units, geochron,
 
 
 def agemodel(units, geochron):
+    """MCMC age modeling.
+
+    Args:
+        units (ndarray): nx2 array of unit bottom and top heights for n units.
+        geochron (geochron.Geochron): Geochron object containing geochron constraints.
+
+    Returns:
+        arviz.InferenceData: ArviZ InferenceData object containing the MCMC trace.
+    """
 
     # number of units
     n_units = units.shape[0]
@@ -331,7 +371,6 @@ def agemodel(units, geochron):
     DT_logps = []
     for ii in range(geochron.n_pairs):
         DT_logps.append(DT_logp_l_gen(geochron.pdts[ii]))
-    DT_logps = DT_logps
 
     def eps_logp(dt_val, params):
         """
@@ -386,4 +425,6 @@ def agemodel(units, geochron):
             dt_val, params = inputs
             loglike_eval = eps_logp(dt_val, params)
             outputs[0][0] = np.asarray(loglike_eval)
-    return
+
+    trace = []
+    return trace
