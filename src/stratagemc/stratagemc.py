@@ -133,6 +133,63 @@ def DT_logp_l_gen(pdt):
     return DT_logp
 
 
+def randlike_gen(geochron, units):
+    """Generate function for generating random draws from likelihood. Permits generating prior_predictive samples from a model with the CustomDist likelihood.
+
+    Args:
+        geochron (geochron.Geochron): Geochron object containing geochronologic constraints.
+        units (ndarray): nx2 array of unit bottom and top heights for n units.
+
+    Returns:
+        function: Function for generating random draws from likelihood.
+    """
+    n_units = units.shape[0]
+    alpha, beta = geochron.model_weights(units)
+
+    def eps_rand(params, rng, size):
+        """
+        Generate random samples from likelihood. Params is the concatenation of sedimentation rates and hiatuses.
+        Args:
+            params (array-like): Array of parameters; concatenation of sedimentation rates and hiatuses.
+            rng (numpy.random.Generator): Random number generator.
+            size (int or tuple of ints, optional): Output shape. Default is None. Last dimension must be the number of pairs of geochron constraints.
+        Returns:
+            numpy.ndarray: Random draws.
+        Raises:
+            AssertionError: If size is incompatible with the number of pairs.
+        Notes:
+            - The function calculates the random draws based on the given parameters and geochron constraints.
+            - If size is not provided or is None, it will default to the number of pairs.
+            - If there is only one pair, the geochron dt will be shifted for the current dt_max.
+            - If there are multiple pairs, the geochron dt for each pair will be shifted for the corresponding dt_max.
+        """
+        sed_rates = params[0:n_units]
+        hiatuses = params[n_units:]
+        dt_hat = np.sum(alpha/sed_rates.reshape(-1, 1), axis=0) + \
+            np.sum(beta*hiatuses.reshape(-1, 1), axis=0)
+
+        if size is None or not size:
+            size = geochron.n_pairs
+        size = np.atleast_1d(size)
+        # print(size)
+        if geochron.n_pairs != 1:
+            assert size[-1] == geochron.n_pairs, 'size incompatible with ys, DTs'
+        if geochron.n_pairs == 1:
+            # shift geochron dt for current dt_max
+            cur_dt = geochron.dts[0] - dt_hat
+            CDF = np.cumsum(geochron.pdts[0]) * np.mean(np.diff(cur_dt))
+            return np.interp(rng.uniform(size=size), CDF, cur_dt)
+        else:
+            rand = []
+            for ii in range(geochron.n_pairs):
+                # shift geochron dt for current dt_max
+                cur_dt = geochron.dts[ii] - dt_hat[ii]
+                CDF = np.cumsum(geochron.pdts[ii]) * np.mean(np.diff(cur_dt))
+                rand.append(np.interp(rng.uniform(size=size[0:-1]), CDF, cur_dt))
+            return np.stack(rand, axis=len(size)-1)
+    return eps_rand
+
+
 def loglike_gen(geochron, units):
     """Returns log-likelihood object for use in PyMC.CustomDist as a likelihood for posterior sampling. See subfunction eps_logp for details on the log-likelihood computation.
 
@@ -418,12 +475,12 @@ def model(units, geochron, sed_rates_prior, hiatuses_prior,
     # sample
     vars_list = list(model.values_to_rvs.keys())[:-1]
     with model:
-        trace = pm.sample_smc(draws=draws, **kwargs)
+        trace = pm.sample(draws=draws, **kwargs)
     return trace
 
 
-# def model2ages(trace, n_posterior=None):
-#     # if n_posterior is None, use effective sample size to dictate number of posterior samples
-#     if n_posterior is None:
-#         # n_posterior = trace.n_eff
-#     return
+def model2ages(trace, n_posterior=None):
+    # if n_posterior is None, use effective sample size to dictate number of posterior samples
+    if n_posterior is None:
+        # n_posterior = trace.n_eff
+    return
