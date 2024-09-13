@@ -84,12 +84,12 @@ class Geochron:
         self.upper_idx = upper_idx
         self.n_pairs = len(self.lower_idx)
 
-    def model_weights(self, unit_heights):
+    def model_weights(self, units):
         """
         Calculate the weights for units and contacts based on their bounding by
         geochron constraints.
         Args:
-            unit_heights: 2d array-like (nx2) of bottom and top heights for each of n units in the section
+            units: 2d array-like (nx2) of bottom and top heights for each of n units in the section
         Returns:
             Tuple[List[List[float]], List[List[float]]]:
                 - alpha: 2D list (NxL) of weights for each of N units and L pairs of geochron constraints.
@@ -99,9 +99,9 @@ class Geochron:
         Notes:
             - Run after trim_units.
         """
-        unit_thicks = np.diff(unit_heights, axis=1).flatten()
-        contacts = unit_heights[0:-1, 1]
-        n_units = unit_heights.shape[0]
+        unit_thicks = np.diff(units, axis=1).flatten()
+        contacts = units[0:-1, 1]
+        n_units = units.shape[0]
         n_contacts = n_units - 1
         # initialize
         alpha = np.zeros((n_units, self.n_pairs))
@@ -113,8 +113,8 @@ class Geochron:
             pair_bottom = self.h[self.lower_idx[ii]]
             # units
             for jj in range(n_units):
-                unit_top = unit_heights[jj, 1]
-                unit_bottom = unit_heights[jj, 0]
+                unit_top = units[jj, 1]
+                unit_bottom = units[jj, 0]
                 # these factors are defined in notes; need to scan
                 top_fact = np.min([np.max([(unit_top-pair_top)/unit_thicks[jj], 0]), 1])
                 bot_fact = np.min(
@@ -223,89 +223,6 @@ class Geochron:
 
         return pdt, dt
 
-    def _pairwise_difference_rv(self, rv_t, rv_pdf, ii):
-        """
-        deprecated
-        function to do pariwise computation of difference rv's for _rv_diff, computes the ii'th pair's difference
-        """
-        # bounds on lower
-        l1 = rv_t[self.lower_idx[ii]][0]
-        u1 = rv_t[self.lower_idx[ii]][-1]
-        # bounds on upper
-        l2 = rv_t[self.upper_idx[ii]][0]
-        u2 = rv_t[self.upper_idx[ii]][-1]
-
-        # current vector of time increments
-        cur_y = np.arange(np.max([l2-u1, 0]), u2-l1, self._dt)
-
-        # make time grid for current pair of constraints
-        T1, T2 = np.meshgrid(rv_t[self.lower_idx[ii]], rv_t[self.upper_idx[ii]])
-        # make pdf grid for current pair of constraints
-        lower_pdf, upper_pdf = np.meshgrid(
-            rv_pdf[self.lower_idx[ii]], rv_pdf[self.upper_idx[ii]])
-
-        # for the ith pair, compute joint pdf (assuming independence)
-        cur_joint = lower_pdf * upper_pdf
-
-        # now just integrate over all dt's
-        cur_DT = np.zeros(len(cur_y))
-        for jj, _ in enumerate(cur_y):
-            # impose stratigraphic superposition while computing time increment pdf (first term)
-            idx = (T2 > T1) & (T2 < T1+cur_y[jj])
-            cur_DT[jj] = np.sum(cur_joint[idx])
-
-        # normalize correctly
-        cur_DT = cur_DT/np.max(cur_DT)
-        # make into pdf
-        cur_DT = np.diff(cur_DT)/self._dt
-    #     cur_y = cur_y[0:-1]+dt/2 # centered difference
-        cur_y = cur_y[0:-1]  # left difference
-        return cur_DT, cur_y
-
-    def _rv_diff(self):
-        """
-        Deprecated
-        compute difference of rv's for given pair of constraints (done once for given set of constraints)
-
-        stores a list of random variables as pdfs capturing the probability distribution of the difference of the random variables.
-
-        y: the dt coordinate over which each DT is evaluated
-        DT: the time increment pdf for the given constraint pair
-        """
-
-        # get temporal bounds for each constraint that constrain given thresholds of probability (so we ignore times of zero probability)
-        rv_t = []
-        rv_pdf = []
-        for ii in tqdm.tqdm(range(self.n_constraints), desc='Constructing time increment cdfs...'):
-            # indices in self.t1 that contain the probability mass for the given constraint
-            cur_up_bnd = self.rv[ii].ppf(1-self.prob_threshold)
-            cur_low_bnd = self.rv[ii].ppf(self.prob_threshold)
-            cur_idx = (self._t > cur_low_bnd) & (self._t < cur_up_bnd)
-            rv_t.append(self._t[cur_idx])
-            rv_pdf.append(self.rv[ii].pdf(self._t[cur_idx]))
-
-        # make partial function compatible with pool map
-        partial_pairwise_difference_rv = partial(self._pairwise_difference_rv,
-                                                 self.lower_idx, self.upper_idx,
-                                                 rv_t, rv_pdf, self._dt)
-
-        # parallel case
-#         pool = Pool()
-#         out = list(tqdm.tqdm(pool.imap(partial_pairwise_difference_rv, range(self.n_pairs), chunksize=5), total=self.n_pairs, desc='Constructing time increment cdfs...'))
-# #         DT = pool.map(partial_pairwise_difference_rv, range(self.n_pairs))
-#         pool.close()
-
-        # serial case
-        out = []
-        for ii in tqdm.tqdm(range(self.n_pairs), desc='Constructing time increment cdfs...'):
-            out.append(partial_pairwise_difference_rv(ii))
-
-        DT = [x[0] for x in out]
-        y = [x[1] for x in out]
-
-        self.DT = DT
-        self.y = y
-
     def straddling(self, height):
         """
         Returns the indices of pairs of constraints that straddle a given height.
@@ -323,20 +240,28 @@ class Geochron:
 
         return idx
 
-    def plot_constraints(self, ax=None, tol=3, scale=1):
+    def plot_constraints(self, ax=None, tol=3, scale=1, **kwargs):
         """
         Plot the geochronologic constraints.
         Args:
             ax (matplotlib.axes.Axes): The axes on which to plot the constraints. If None, a new figure is created.
             tol (int): The number of orders of magnitude below the maximum pdf value to plot.
             scale (float): The scale factor for the pdfs.
+            **kwargs: Additional keyword arguments passed to the matplotlib fill_between function.
+
         Returns:
             matplotlib.axes.Axes: The axes on which the constraints are plotted.
         """
         if ax is None:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
             ax.set_xlabel('Time')
             ax.set_ylabel('Height')
+
+        # set up default kwargs
+        defKwargs = {'edgecolor': 'black',
+                     'facecolor': 'lightgrey',
+                     'linewidth': 1}
+        kwargs = defKwargs | kwargs
 
         for ii in range(self.n_constraints):
             cur_pdf = self.rv[ii].pdf(self._t)
@@ -347,12 +272,10 @@ class Geochron:
             pdf_scale = scale/(np.max(cur_pdf[idx_pdf]) - np.min(cur_pdf[idx_pdf]))
             cur_pdf = self.h[ii] + pdf_scale * cur_pdf
 
-            cur_h = ax.fill_between(self._t[idx_pdf],
-                                    cur_pdf[idx_pdf],
-                                    self.h[ii],
-                                    linewidth=1,
-                                    alpha=0.7,
-                                    color='lightgrey')
+            _ = ax.fill_between(self._t[idx_pdf],
+                                cur_pdf[idx_pdf],
+                                self.h[ii],
+                                **kwargs)
 
         return ax
 

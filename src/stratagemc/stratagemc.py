@@ -5,6 +5,7 @@ import numpy as np
 
 from numba import njit
 
+import pymc as pm
 import pytensor.tensor as pt
 from pytensor.graph import Apply, Op
 
@@ -36,9 +37,10 @@ def geochron_height_check(unit_heights, geochron_heights):
                   ), 'geochron heights are below section'
     assert np.all(geochron_heights <= np.max(unit_heights)
                   ), 'geochron heights are above section'
-    # check that geochron heights are not at contacts
-    offending_heights = np.intersect1d(geochron_heights, np.unique(unit_heights))
-    assert len(offending_heights) == 0, offending_heights
+    # check that geochron heights are not at contacts except for the top and bottom
+    offending_heights = np.intersect1d(geochron_heights, np.unique(unit_heights[1:-1]))
+    assert len(offending_heights) == 0, \
+        f'geochron heights cannot be at contacts, {offending_heights}'
 
 
 def trim_units(unit_heights, geochron_heights):
@@ -130,65 +132,81 @@ def DT_logp_l_gen(pdt):
         return np.log(np.interp(dt_query, dt, pdt) * sigmoid(dt_query-dt[0]) * sigmoid(dt[-1]-dt_query))
     return DT_logp
 
-# class AgeModel:
-#     def __init__(self, units, geochron, **kwargs):
-#         """Initializes the AgeModel class.
 
-#         Args:
-#             units (ndarray): nx2 array of unit bottom and top heights for n units.
-#             geochron (stratagemc.Geochron): Geochron object containing geochron constraints.
-#         """
-#         self.units = units
-#         self.geochron = geochron
-#         # number of units
-#         self.n_units = units.shape[0]
-#         # thicknesses of units
-#         self.thicknesses = np.diff(units, axis=1).squeeze()
-#         # confirm that geochron heights are within the section
-#         geochron_height_check(units, geochron.h)
-#         # trim the section to the top and bottom of the geochron constraints
-#         self.units_trim = trim_units(units, geochron.h)
-#         # get weights (alpha, beta) for units
-#         self.alpha, self.beta = geochron.model_weights(self.units_trim)
+def loglike_gen(geochron, units):
+    """Returns log-likelihood object for use in PyMC.CustomDist as a likelihood for posterior sampling. See subfunction eps_logp for details on the log-likelihood computation.
 
-#         # create time increment log-probability functions for each pair of constraints
-#         DT_logps = []
-#         for ii in range(geochron.n_pairs):
-#             DT_logps.append(DT_logp_l_gen(geochron.pdts[ii]))
-#         self.DT_logps = DT_logps
-#         pass
+    Args:
+        geochron (geochron.Geochron): Geochron object containing geochronologic constraints.
+        units (ndarray): nx2 array of unit bottom and top heights for n units.
 
-#     def eps_logp(self, dt_val, params):
-#         """
-#         Generates the log-probability for the deviation from the maximum likelihood time increment values for each pair of constraints. This function is designed to be evaluated at zero (dt_val = 0). Params contains the sedimentation rates and hiatuses for the stratigraphy. For a given params, the corresponding time increments (dt_hat) are computed for each pair. If they are near the true maximum likelihood time increments (geochron.dts_max), then evaluation at dt_val = 0 will return the highest likelihood. If any dt_hat is near zero, then dt_val=0 evaluates near dt=0 (for the true time increment), which has to be small since the time increments must be positive. The log-probability is computed by interpolating the numerical time increment functions and applying a sigmoid function to ensure the values are within a valid range.
+    Returns:
+        LogLike: PyTensor Op class for likelihood evaluation.
+    """
+    # model weights
+    alpha, beta = geochron.model_weights(units)
+    n_units = units.shape[0]
+    # time increment log-probability functions
+    DT_logps = []
+    for ii in range(geochron.n_pairs):
+        DT_logps.append(DT_logp_l_gen(geochron.pdts[ii]))
 
-#         Args:
-#             dt_val (array-like): The observed DT values.
-#             params (array-like): Model parameters as concatenation of sedimentation rates and hiatuses.
-#         Returns:
-#             numpy.ndarray: The log-probability values for each pair of DT values.
-#         Notes:
-#             - `geochron.n_pairs` is used to determine the number of DT pairs.
-#             - The function computes `dt_hat` using sedimentation rates and hiatuses.
-#             - The log-probability is calculated by interpolating the observed DT values
-#             and applying a sigmoid function to ensure the values are within a valid range.
-#         """
-#         n = self.geochron.n_pairs
-#         # logp = 0
-#         logp = np.zeros(n)
-#         sed_rates = params[0:self.n_units]
-#         hiatuses = params[self.n_units:]
-#         # compute dt_hat
-#         dt_hat = np.sum(self.alpha/sed_rates.reshape(-1, 1), axis=0) + np.sum(self.beta*hiatuses.reshape(-1, 1), axis=0)
-#         for ii in range(n):
-#             # shift geochron dt for current dt_hat
-#             cur_dt = self.geochron.dts[ii] - dt_hat[ii]
-#             logp[ii] = self.DT_logps[ii](dt_val[ii], cur_dt)
-#             # logp[ii] = np.log(np.interp(dt_val[ii], cur_dt, geochron.pdts[ii]) * \
-#             #                   sigmoid(dt_val[ii]-cur_dt[0]) * \
-#             #                   sigmoid(cur_dt[-1]-dt_val[ii]))
-#             # logp += cur_logp_fun(t[ii])
-#         return logp
+    def eps_logp(dt_val, params):
+        """
+        Generates the log-probability for the deviation from the maximum likelihood time increment values for each pair of constraints. This function is designed to be evaluated at zero (dt_val = 0). Params contains the sedimentation rates and hiatuses for the stratigraphy. For a given params, the corresponding time increments (dt_hat) are computed for each pair. If they are near the true maximum likelihood time increments (geochron.dts_max), then evaluation at dt_val = 0 will return the highest likelihood. If any dt_hat is near zero, then dt_val=0 evaluates near dt=0 (for the true time increment), which has to be small since the time increments must be positive. The log-probability is computed by interpolating the numerical time increment functions and applying a sigmoid function to ensure the values are within a valid range.
+
+        Args:
+            dt_val (array-like): The observed DT values.
+            params (array-like): Model parameters as concatenation of sedimentation rates and hiatuses.
+        Returns:
+            numpy.ndarray: The log-probability values for each pair of DT values.
+        Notes:
+            - `geochron.n_pairs` is used to determine the number of DT pairs.
+            - The function computes `dt_hat` using sedimentation rates and hiatuses.
+            - The log-probability is calculated by interpolating the observed DT values 
+            and applying a sigmoid function to ensure the values are within a valid range.
+        """
+        n = geochron.n_pairs
+        # logp = 0
+        logp = np.zeros(n)
+        sed_rates = params[0:n_units]
+        hiatuses = params[n_units:]
+        # compute dt_hat
+        dt_hat = np.sum(alpha/sed_rates.reshape(-1, 1), axis=0) + \
+            np.sum(beta*hiatuses.reshape(-1, 1), axis=0)
+        for ii in range(n):
+            # shift geochron dt for current dt_hat
+            cur_dt = geochron.dts[ii] - dt_hat[ii]
+            logp[ii] = DT_logps[ii](dt_val[ii], cur_dt)
+            # logp[ii] = np.log(np.interp(dt_val[ii], cur_dt, geochron.pdts[ii]) * \
+            #                   sigmoid(dt_val[ii]-cur_dt[0]) * \
+            #                   sigmoid(cur_dt[-1]-dt_val[ii]))
+            # logp += cur_logp_fun(t[ii])
+        return logp
+
+    class LogLike(Op):
+        """"blackbox" likelihood class for PyMC which enables use of eps_logp as a likelihood for sampling.
+
+        Args:
+            Op (pystensor.graph.Op): PyTensor Op class.
+        """
+
+        def make_node(self, dt_val, params) -> Apply:
+            dt_val = pt.as_tensor(dt_val)
+            params = pt.as_tensor(params)
+            inputs = [dt_val, params]
+            outputs = [dt_val.type()]
+            return Apply(self, inputs, outputs)
+
+        def perform(self, node: Apply,
+                    inputs: list[np.ndarray],
+                    outputs: list[list[None]]) -> None:
+            dt_val, params = inputs
+            loglike_eval = eps_logp(dt_val, params)
+            outputs[0][0] = np.asarray(loglike_eval)
+
+    loglike_op = LogLike()
+    return loglike_op
 
 
 def floating_age(sed_rates, hiatuses, units, heights):
@@ -345,86 +363,67 @@ def model_ls(units, geochron,
     return sed_rates, hiatuses
 
 
-def agemodel(units, geochron):
-    """MCMC age modeling.
+def model(units, geochron, sed_rates_prior, hiatuses_prior,
+          draws=1000, **kwargs):
+    """MCMC modeling of sed rates.
+
+    User must provide priors for sedimentation rates and hiatuses, which are functions valid as dist arguments to pymc.CustomDist(dist=dist). In this case, the only valid signature is dist(size=size), since this function does not permit additional arguments to the distribution.
 
     Args:
         units (ndarray): nx2 array of unit bottom and top heights for n units.
         geochron (geochron.Geochron): Geochron object containing geochron constraints.
-
-    Returns:
+        sed_rates_prior (function): Prior distribution for sedimentation rates. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is sed_rate_prior(size=size).
+        hiatuses_prior (function): Prior distribution for hiatuses. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is hiatus_prior(size=size).
+        draws (int, optional): Number of MCMC draws. Defaults to 1000.
+        **kwargs: Additional keyword arguments to pass to the MCMC sampler.
+    Returns:    
         arviz.InferenceData: ArviZ InferenceData object containing the MCMC trace.
     """
 
     # number of units
     n_units = units.shape[0]
-    # thicknesses of units
-    thicknesses = np.diff(units, axis=1).squeeze()
+    # number of contacts
+    n_contacts = n_units - 1
     # confirm that geochron heights are within the section
     geochron_height_check(units, geochron.h)
     # trim the section to the top and bottom of the geochron constraints
     units_trim = trim_units(units, geochron.h)
-    # get weights (alpha, beta) for units
-    alpha, beta = geochron.model_weights(units_trim)
-
-    # create time increment log-probability functions for each pair of constraints
-    DT_logps = []
-    for ii in range(geochron.n_pairs):
-        DT_logps.append(DT_logp_l_gen(geochron.pdts[ii]))
-
-    def eps_logp(dt_val, params):
-        """
-        Generates the log-probability for the deviation from the maximum likelihood time increment values for each pair of constraints. This function is designed to be evaluated at zero (dt_val = 0). Params contains the sedimentation rates and hiatuses for the stratigraphy. For a given params, the corresponding time increments (dt_hat) are computed for each pair. If they are near the true maximum likelihood time increments (geochron.dts_max), then evaluation at dt_val = 0 will return the highest likelihood. If any dt_hat is near zero, then dt_val=0 evaluates near dt=0 (for the true time increment), which has to be small since the time increments must be positive. The log-probability is computed by interpolating the numerical time increment functions and applying a sigmoid function to ensure the values are within a valid range.
-
-        Args:
-            dt_val (array-like): The observed DT values.
-            params (array-like): Model parameters as concatenation of sedimentation rates and hiatuses.
-        Returns:
-            numpy.ndarray: The log-probability values for each pair of DT values.
-        Notes:
-            - `geochron.n_pairs` is used to determine the number of DT pairs.
-            - The function computes `dt_hat` using sedimentation rates and hiatuses.
-            - The log-probability is calculated by interpolating the observed DT values 
-            and applying a sigmoid function to ensure the values are within a valid range.
-        """
-        n = geochron.n_pairs
-        # logp = 0
-        logp = np.zeros(n)
-        sed_rates = params[0:n_units]
-        hiatuses = params[n_units:]
-        # compute dt_hat
-        dt_hat = np.sum(alpha/sed_rates.reshape(-1, 1), axis=0) + \
-            np.sum(beta*hiatuses.reshape(-1, 1), axis=0)
-        for ii in range(n):
-            # shift geochron dt for current dt_hat
-            cur_dt = geochron.dts[ii] - dt_hat[ii]
-            logp[ii] = DT_logps[ii](dt_val[ii], cur_dt)
-            # logp[ii] = np.log(np.interp(dt_val[ii], cur_dt, geochron.pdts[ii]) * \
-            #                   sigmoid(dt_val[ii]-cur_dt[0]) * \
-            #                   sigmoid(cur_dt[-1]-dt_val[ii]))
-            # logp += cur_logp_fun(t[ii])
-        return logp
-
-    class LogLike(Op):
-        """"blackbox" likelihood class for PyMC which enables use of eps_logp as a likelihood for sampling.
-
-        Args:
-            Op (pystensor.graph.Op): PyTensor Op class.
-        """
-
-        def make_node(self, dt_val, params) -> Apply:
-            dt_val = pt.as_tensor(dt_val)
-            params = pt.as_tensor(params)
-            inputs = [dt_val, params]
-            outputs = [dt_val.type()]
-            return Apply(self, inputs, outputs)
-
-        def perform(self, node: Apply,
-                    inputs: list[np.ndarray],
-                    outputs: list[list[None]]) -> None:
-            dt_val, params = inputs
-            loglike_eval = eps_logp(dt_val, params)
-            outputs[0][0] = np.asarray(loglike_eval)
-
-    trace = []
+    # create least squares model as initial guess
+    sed_rates_ls, hiatuses_ls = model_ls(units, geochron)
+    # create time increment log-like function
+    loglike_op = loglike_gen(geochron, units_trim)
+    # create model
+    coords = {'units': np.arange(n_units),
+              'contacts': np.arange(n_contacts),
+              'pairs': np.arange(geochron.n_pairs)}
+    model = pm.Model(coords=coords)
+    with model:
+        # sed rates
+        sed_rates = pm.CustomDist('sed_rates',
+                                  dist=sed_rates_prior,
+                                  shape=(n_units,),
+                                  dims='units')
+        model.set_initval(sed_rates, sed_rates_ls)
+        # hiatuses
+        hiatuses = pm.CustomDist('hiatuses',
+                                 dist=hiatuses_prior,
+                                 shape=(n_contacts,),
+                                 dims='contacts')
+        model.set_initval(hiatuses, hiatuses_ls)
+        # likelihood
+        likelihood = pm.CustomDist('likelihood',
+                                   pm.math.concatenate([sed_rates, hiatuses]),
+                                   observed=np.zeros(geochron.n_pairs),
+                                   logp=loglike_op)
+    # sample
+    vars_list = list(model.values_to_rvs.keys())[:-1]
+    with model:
+        trace = pm.sample_smc(draws=draws, **kwargs)
     return trace
+
+
+# def model2ages(trace, n_posterior=None):
+#     # if n_posterior is None, use effective sample size to dictate number of posterior samples
+#     if n_posterior is None:
+#         # n_posterior = trace.n_eff
+#     return
