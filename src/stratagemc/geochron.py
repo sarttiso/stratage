@@ -8,14 +8,17 @@ import matplotlib.pyplot as plt
 class Geochron:
     """Class for handling geochronologic constraints in stratigraphic sections."""
 
-    def __init__(self, h, rv, dt, prob_threshold=1e-16):
+    def __init__(self, h, rv, dt, prob_threshold=1e-8):
         """
         Initializes the Geochron class.
+
         Args:
-            h (array-like): List of stratigraphic heights at which temporal constraints are measured.
-                The coordinate increases up section.
+            h (array-like): List of stratigraphic heights at which temporal constraints
+            are measured. The coordinate increases up section.
             rv (array-like): List of random variables representing the temporal constraints at each height. The members of this list must be objects similar to stats.dist objects with the following methods: pdf, ppf (inverse of cdf).
             dt (float): Time spacing for computing the time increment pdfs. Units are same as rvs
+            prob_threshold (float, optional): Probability threshold for determining the temporal range over which to grid. Defaults to 1e-8.
+
         Attributes:
             h (list): Sorted list of stratigraphic heights.
             rv (list): Sorted list of random variables representing the temporal constraints.
@@ -88,16 +91,21 @@ class Geochron:
         """
         Calculate the weights for units and contacts based on their bounding by
         geochron constraints.
+
         Args:
-            units: 2d array-like (nx2) of bottom and top heights for each of n units in the section
+            units (numpy.ndarray): Bottom and top heights of units in section. 
+                2d array (nx2) of bottom and top heights for each of n units
+
         Returns:
             Tuple[List[List[float]], List[List[float]]]:
                 - alpha: 2D list (NxL) of weights for each of N units and L pairs of geochron constraints.
                 - beta: 2D list (MxL) of weights for each of M contacts and L pairs of geochron constraints.
+
         Raises:
             AssertionError: If any rows in alpha or beta are entirely zero, indicating unconstrained model parameters.
+
         Notes:
-            - Run after trim_units.
+            - Run after :py:func:`stratagemc.trim_units()`.
         """
         unit_thicks = np.diff(units, axis=1).flatten()
         contacts = units[0:-1, 1]

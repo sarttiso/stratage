@@ -25,9 +25,12 @@ _logger = logging.getLogger(__name__)
 def geochron_height_check(unit_heights, geochron_heights):
     """
     Ensure that geochron heights are within units and not at contacts. Also ensure that geochron heights are within the section. Run before trimming section to the top and bottom of the geochron constraints.
+
     Args:
-        unit_heights: Bottom and top heights of units in section. The heights are given as a 2d array-like (nx2) of bottom and top heights for each of n units, increasing downwards in array
-        geochron_heights: Heights of geochron constraints in the section, array-like
+        unit_heights (numpy.ndarray): Bottom and top heights of units in section. 
+            2d array (nx2) of bottom and top heights for each of n units
+        geochron_heights (arraylike): Heights of geochron constraints in the section
+
     Raises:
         AssertionError: If any of the geochron heights are below the section or above the section.
         AssertionError: If any of the geochron heights are at contacts.
@@ -46,12 +49,15 @@ def geochron_height_check(unit_heights, geochron_heights):
 def trim_units(unit_heights, geochron_heights):
     """
     Trim the top and bottom of the section to the top and bottom of the geochron constraints. Run after geochron_height_check.
+
     Args:
-        unit_heights: Heights of contacts in section, including top and bottom.
+        unit_heights (numpy.ndarray): Bottom and top heights of units in section. 
             2d array-like (nx2) of bottom and top heights for each of n units
-        geochron_heights: Heights of geochron constraints in section
+        geochron_heights (arraylike): Heights of geochron constraints in section
+
     Returns:
-        unit_heights_trim: Trimmed unit heights after adjusting for the top and bottom units
+        numpy.ndarray: Trimmed unit heights after adjusting for the top and bottom units
+
     Raises:
         None
     """
@@ -76,13 +82,15 @@ def trim_units(unit_heights, geochron_heights):
 def get_times(sed_rates, hiatuses, units):
     """
     Floating times array for units.
+
     Args:
-        sed_rates: Sedimentation rates for each unit, array-like
-        hiatuses: Hiatuses between units, array-like
-        units: Heights of contacts in section, including top and bottom.
-            2d array-like (nx2) of bottom and top heights for each of n units
+        sed_rates (arraylike): Sedimentation rates for each unit
+        hiatuses (arraylike): Hiatuses between units
+        units (numpy.ndarray): Bottom and top heights of units in section. 
+            2d array (nx2) of bottom and top heights for each of n units
+
     Returns:
-        times: Floating times array for units, array-like
+        times (numpy.ndarray): Floating times array for units, same shape as units
     """
     n_units = units.shape[0]
     assert len(sed_rates) == n_units, 'must have sed rate for each unit'
@@ -118,14 +126,16 @@ def sigmoid(t, scale=0.001):
 def DT_logp_l_gen(pdt):
     """
     Generates a log-probability function for a numerical time increment distribution. Returned function interpolates a log probability and takes as inputs time increment(s) at which to evaluate as well as (required) time increment coordinates corresponding to the numerical pdf associated with the function. Sped up with numba.
+
     Args:
         pdt (array-like): The probability density function values for the time increments.
+
     Returns:
-        function: A function that computes the log-probability of a given time increment.
-    The returned function, DT_logp, takes the following parameters:
-        dt_query (float): The time increment for which the log-probability is to be computed.
-        dt (array-like): The array of time increments corresponding to the probability density function values. Must be same length as pdt.
-    The DT_logp function computes the log-probability by interpolating the probability density function values and applying sigmoid functions to ensure the values are within the valid range.
+        numba.core.registry.CPUDispatcher: A function that computes the log-probability of a given time increment.
+            The returned function, DT_logp, takes the following parameters:
+                dt_query (float): The time increment for which the log-probability is to be computed.
+                dt (array-like): The array of time increments corresponding to the probability density function values. Must be same length as pdt.
+            The DT_logp function computes the log-probability by interpolating the probability density function values and applying sigmoid functions to ensure the values are within the valid range.
     """
     @njit
     def DT_logp(dt_query, dt):
@@ -134,14 +144,21 @@ def DT_logp_l_gen(pdt):
 
 
 def randlike_gen(geochron, units):
-    """Generate function for generating random draws from likelihood. Permits generating prior_predictive samples from a model with the CustomDist likelihood.
+    """
+    Generate function for generating random draws from likelihood. Permits generating prior_predictive samples from a model with the CustomDist likelihood.
 
     Args:
         geochron (geochron.Geochron): Geochron object containing geochronologic constraints.
-        units (ndarray): nx2 array of unit bottom and top heights for n units.
+        units (numpy.ndarray): Bottom and top heights of units in section. 
+            2d array (nx2) of bottom and top heights for each of n units
 
     Returns:
         function: Function for generating random draws from likelihood.
+            The returned function, eps_rand, takes the following parameters:
+                | params (array-like): Array of parameters; concatenation of sedimentation rates and hiatuses.
+                | rng (numpy.random.Generator): Random number generator.
+                | size (int or tuple of ints, optional): Output shape. Default is None. Last dimension must be the number of pairs of geochron constraints.
+            The function returns a numpy.ndarray of random draws.
     """
     n_units = units.shape[0]
     alpha, beta = geochron.model_weights(units)
@@ -149,14 +166,18 @@ def randlike_gen(geochron, units):
     def eps_rand(params, rng, size):
         """
         Generate random samples from likelihood. Params is the concatenation of sedimentation rates and hiatuses.
+
         Args:
             params (array-like): Array of parameters; concatenation of sedimentation rates and hiatuses.
             rng (numpy.random.Generator): Random number generator.
             size (int or tuple of ints, optional): Output shape. Default is None. Last dimension must be the number of pairs of geochron constraints.
+
         Returns:
             numpy.ndarray: Random draws.
+
         Raises:
             AssertionError: If size is incompatible with the number of pairs.
+
         Notes:
             - The function calculates the random draws based on the given parameters and geochron constraints.
             - If size is not provided or is None, it will default to the number of pairs.
@@ -360,6 +381,7 @@ def fit_floating_model(sed_rates, hiatuses, units, geochron, tol=1e-6):
 def age_depth(units, times):
     """
     Convert units, times arrays to age-depth curve
+
     Args:
         units (numpy.ndarray): An nx2 array of bottom and top elevations for each of n units.
         times (numpy.ndarray): An nx2 array of bottom and top times for each of n units.
@@ -383,9 +405,10 @@ def model_ls(units, geochron,
         geochron (geochron.Geochron): Geochron object containing geochron constraints.
         sed_rate_bounds (list, optional): Bounds on sedimentation rates. Defaults to None.
         hiatus_bounds (list, optional): Bounds on hiatuses. Defaults to None.
+
     Returns:
-        ndarray: Sedimentation rates for each unit.
-        ndarray: Hiatuses between units.
+        sed_rates (numpy.ndarray): Sedimentation rates for each unit.
+        hiatuses (numpy.ndarray): Hiatuses between units.
     """
     alpha, beta = geochron.model_weights(units)
     # model matrix
@@ -433,6 +456,7 @@ def model(units, geochron, sed_rates_prior, hiatuses_prior,
         hiatuses_prior (function): Prior distribution for hiatuses. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is hiatus_prior(size=size).
         draws (int, optional): Number of MCMC draws. Defaults to 1000.
         **kwargs: Additional keyword arguments to pass to the MCMC sampler.
+
     Returns:    
         arviz.InferenceData: ArviZ InferenceData object containing the MCMC trace.
     """
@@ -483,4 +507,4 @@ def model2ages(trace, n_posterior=None):
     # if n_posterior is None, use effective sample size to dictate number of posterior samples
     if n_posterior is None:
         # n_posterior = trace.n_eff
-    return
+        return

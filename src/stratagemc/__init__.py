@@ -16,3 +16,18 @@ finally:
     del version, PackageNotFoundError
 
 from .stratagemc import *
+
+__all__ = ['geochron_height_check',
+           'trim_units',
+           'get_times',
+           'sigmoid',
+           'DT_logp_l_gen',
+           'randlike_gen',
+           'loglike_gen',
+           'floating_age',
+           'age',
+           'fit_floating_model',
+           'age_depth',
+           'model_ls',
+           'model',
+           'model2ages']
