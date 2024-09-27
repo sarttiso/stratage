@@ -24,6 +24,8 @@ import argparse
 import logging
 import sys
 
+import numpy as np
+
 from stratagemc import __version__
 
 __author__ = "Adrian Tasistro-Hart"
@@ -40,20 +42,20 @@ _logger = logging.getLogger(__name__)
 # when using this Python module as a library.
 
 
-def fib(n):
-    """Fibonacci example function
+def geochron_height_check(section_heights, geochron_heights):
+    """Ensure that geochron heights are within units and not at contacts. Also ensure that geochron heights are within the section.
 
-    Args:
-      n (int): integer
-
-    Returns:
-      int: n-th Fibonacci number
+    :param section_heights: Heights of contacts in section, including top and bottom.
+    :type section_heights: array-like
+    :param geochron_heights: Heights of geochron constraints in section
+    :type geochron_heights: array-like
     """
-    assert n > 0
-    a, b = 1, 1
-    for _i in range(n - 1):
-        a, b = b, a + b
-    return a
+    # check that geochron heights are within the section
+    assert np.all(geochron_heights >= np.min(section_heights)), 'geochron heights are below section'
+    assert np.all(geochron_heights <= np.max(section_heights)), 'geochron heights are above section'
+    # check that geochron heights are not at contacts
+    assert np.all(geochron_heights != section_heights), 'geochron heights are at contacts'
+
 
 
 # ---- CLI ----
