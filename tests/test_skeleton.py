@@ -1,6 +1,5 @@
 import pytest
 
-from stratagemc.skeleton import fib, main
 
 __author__ = "Adrian Tasistro-Hart"
 __copyright__ = "Adrian Tasistro-Hart"

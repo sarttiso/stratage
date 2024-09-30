@@ -11,9 +11,9 @@ from pytensor.graph import Apply, Op
 
 from scipy.optimize import minimize_scalar, lsq_linear
 
-from stratagemc.geochron import Geochron
+from .geochron import Geochron
 
-from stratagemc import __version__
+from stratage import __version__
 
 __author__ = "Adrian Tasistro-Hart"
 __copyright__ = "Adrian Tasistro-Hart"
