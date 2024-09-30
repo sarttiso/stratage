@@ -1,8 +1,8 @@
-==========
-stratagemc
-==========
+========
+StratAge
+========
 
-This is the documentation of **stratagemc**.
+This is the documentation of **stratage**.
 
 .. note::
 

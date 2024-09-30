@@ -1,7 +1,7 @@
-stratagemc
-==========
+stratage
+========
 
 .. toctree::
    :maxdepth: 4
 
-   stratagemc
+   stratage

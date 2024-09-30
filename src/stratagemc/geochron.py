@@ -1,6 +1,7 @@
 import numpy as np
 from functools import partial
 import tqdm
+import warnings
 
 import matplotlib.pyplot as plt
 
@@ -58,10 +59,7 @@ class Geochron:
         self._t = np.arange(self._t_min, self._t_max, self._dt/2)
 
         # verify that this grid resolves the probability distributions that were given
-        for ii, _ in enumerate(self.rv):
-            # first test is to ensure that 90% of probability is captured by the pdf over t1
-            assert np.sum(self.rv[ii].pdf(self._t))*(self._dt/2) > 0.9, \
-                f'{ii}th rv not resolvable at specified temporal sampling'
+        ## TO DO
 
         # save probability threshold for filtering of time grid based on each constraint's pdf
         self.prob_threshold = prob_threshold
@@ -162,6 +160,10 @@ class Geochron:
             rv_t.append(self._t[cur_idx])
             rv_pdf.append(self.rv[ii].pdf(self._t[cur_idx]))
 
+        # warn user if any constraints have a time grid with more than 1000 points
+        if np.any([len(x) > 1000 for x in rv_t]):
+            warnings.warn('Some constraints have more than 1000 points in their time grid. This may slow down the computation of time increment pdfs.')
+
         pdts = []
         dts = []
         for ii in tqdm.tqdm(range(self.n_pairs),
@@ -211,16 +213,17 @@ class Geochron:
         PJ = P1 * P2
 
         # now just integrate over all dt's
-        # DT = np.zeros(len(y))
-        # for ii, cur_y in enumerate(y):
-        #     # impose stratigraphic superposition while computing time increment pdf (first term)
-        #     idx = (T2 > T1) & (T2 < T1+cur_y)
-        #     DT[ii] = np.sum(PJ[idx])
-        idx = np.tile(T2 > T1, (len(dt), 1, 1)) & \
-            (np.tile(T2, (len(dt), 1, 1)) < (np.tile(T1, (len(dt), 1, 1)) +
-                                             np.reshape(dt, (-1, 1, 1))))
-        # evaluate cumulative increment function here
-        cdt = np.sum(PJ*idx, axis=(1, 2))
+        cdt = np.zeros(len(dt))
+        for ii, cur_dt in enumerate(dt):
+            # impose stratigraphic superposition while computing time increment pdf (first term)
+            idx = (T2 > T1) & (T2 < T1+cur_dt)
+            cdt[ii] = np.sum(PJ[idx])
+
+        # idx = np.tile(T2 > T1, (len(dt), 1, 1)) & \
+        #     (np.tile(T2, (len(dt), 1, 1)) < (np.tile(T1, (len(dt), 1, 1)) +
+        #                                      np.reshape(dt, (-1, 1, 1))))
+        # # evaluate cumulative increment function here
+        # cdt = np.sum(PJ*idx, axis=(1, 2))
 
         # normalize correctly (CDF should sum to one, the max)
         cdt = cdt/np.max(cdt)
@@ -249,8 +252,8 @@ class Geochron:
         return idx
 
     def plot_constraints(self, ax=None, tol=3, scale=1, **kwargs):
-        """
-        Plot the geochronologic constraints.
+        """Plot the geochronologic constraints.
+
         Args:
             ax (matplotlib.axes.Axes): The axes on which to plot the constraints. If None, a new figure is created.
             tol (int): The number of orders of magnitude below the maximum pdf value to plot.
@@ -258,7 +261,8 @@ class Geochron:
             **kwargs: Additional keyword arguments passed to the matplotlib fill_between function.
 
         Returns:
-            matplotlib.axes.Axes: The axes on which the constraints are plotted.
+            matplotlib.axes._axes.Axes: The axes on which the constraints are plotted.
+            list: The handles for the plotted constraints.
         """
         if ax is None:
             _, ax = plt.subplots()
@@ -271,6 +275,7 @@ class Geochron:
                      'linewidth': 1}
         kwargs = defKwargs | kwargs
 
+        h = []
         for ii in range(self.n_constraints):
             cur_pdf = self.rv[ii].pdf(self._t)
             # only plot the part of the pdf that matters
@@ -280,18 +285,20 @@ class Geochron:
             pdf_scale = scale/(np.max(cur_pdf[idx_pdf]) - np.min(cur_pdf[idx_pdf]))
             cur_pdf = self.h[ii] + pdf_scale * cur_pdf
 
-            _ = ax.fill_between(self._t[idx_pdf],
+            h.append(ax.fill_between(self._t[idx_pdf],
                                 cur_pdf[idx_pdf],
                                 self.h[ii],
-                                **kwargs)
+                                **kwargs))
 
-        return ax
+        return ax, h
 
     def plot_increment_pdfs(self, ax=None, tol=3, scale=1):
-        """
-        Plot the time increment pdfs.
+        """Plot the time increment pdfs.
+
         Args:
             ax (matplotlib.axes.Axes): The axes on which to plot the increment pdfs. If None, a new figure is created.
+            tol (int): The number of orders of magnitude below the maximum pdf value to plot.
+            scale (float): The scale factor for the pdfs.
         Returns:
             matplotlib.axes.Axes: The axes on which the increment pdfs are plotted.
         """

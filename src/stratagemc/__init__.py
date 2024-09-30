@@ -15,7 +15,7 @@ except PackageNotFoundError:  # pragma: no cover
 finally:
     del version, PackageNotFoundError
 
-from .stratagemc import *
+from .stratage import *
 
 __all__ = ['geochron_height_check',
            'trim_units',
