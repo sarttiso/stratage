@@ -1,10 +1,10 @@
-stratagemc package
-==================
+stratage package
+================
 
 Module contents
 ---------------
 
-.. automodule:: stratagemc
+.. automodule:: stratage
    :imported-members:
    :members:
    :undoc-members:
@@ -14,10 +14,10 @@ Module contents
 Submodules
 ----------
 
-stratagemc.geochron module
---------------------------
+stratage.geochron module
+------------------------
 
-.. automodule:: stratagemc.geochron
+.. automodule:: stratage.geochron
    :members:
    :undoc-members:
    :show-inheritance:

@@ -28,31 +28,31 @@ sys.path.insert(0, os.path.join(__location__, "../src"))
 # setup.py install" in the RTD Advanced Settings.
 # Additionally it helps us to avoid running apidoc manually
 
-# try:  # for Sphinx >= 1.7
-#     from sphinx.ext import apidoc
-# except ImportError:
-#     from sphinx import apidoc
+try:  # for Sphinx >= 1.7
+    from sphinx.ext import apidoc
+except ImportError:
+    from sphinx import apidoc
 
-# output_dir = os.path.join(__location__, "api")
-# module_dir = os.path.join(__location__, "../src/stratagemc")
-# try:
-#     shutil.rmtree(output_dir)
-# except FileNotFoundError:
-#     pass
+output_dir = os.path.join(__location__, "api")
+module_dir = os.path.join(__location__, "../src/stratage")
+try:
+    shutil.rmtree(output_dir)
+except FileNotFoundError:
+    pass
 
-# try:
-#     import sphinx
+try:
+    import sphinx
 
-#     cmd_line = f"sphinx-apidoc --implicit-namespaces -f -o {output_dir} {module_dir}"
+    cmd_line = f"sphinx-apidoc --implicit-namespaces -f -o {output_dir} {module_dir}"
 
-#     args = cmd_line.split(" ")
-#     if tuple(sphinx.__version__.split(".")) >= ("1", "7"):
-#         # This is a rudimentary parse_version to avoid external dependencies
-#         args = args[1:]
+    args = cmd_line.split(" ")
+    if tuple(sphinx.__version__.split(".")) >= ("1", "7"):
+        # This is a rudimentary parse_version to avoid external dependencies
+        args = args[1:]
 
-#     apidoc.main(args)
-# except Exception as e:
-#     print("Running `sphinx-apidoc` failed!\n{}".format(e))
+    apidoc.main(args)
+except Exception as e:
+    print("Running `sphinx-apidoc` failed!\n{}".format(e))
 
 # -- General configuration ---------------------------------------------------
 
@@ -89,7 +89,7 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = "stratagemc"
+project = "stratage"
 copyright = "2024, Adrian Tasistro-Hart"
 
 # The version info for the project you're documenting, acts as replacement for
@@ -101,7 +101,7 @@ copyright = "2024, Adrian Tasistro-Hart"
 # If you don’t need the separation provided between version and release,
 # just set them both to the same value.
 try:
-    from stratagemc import __version__ as version
+    from stratage import __version__ as version
 except ImportError:
     version = ""
 
@@ -231,7 +231,7 @@ html_static_path = ["_static"]
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "stratagemc-doc"
+htmlhelp_basename = "stratage-doc"
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -248,7 +248,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ("index", "user_guide.tex", "stratagemc Documentation", "Adrian Tasistro-Hart", "manual")
+    ("index", "user_guide.tex", "stratage Documentation", "Adrian Tasistro-Hart", "manual")
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
