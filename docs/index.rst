@@ -29,7 +29,7 @@ Contents
 .. toctree::
    :maxdepth: 2
 
-   Module Reference <modules>
+   Module Reference <api/modules>
    Overview <readme>
    Contributions & Help <contributing>
    License <license>

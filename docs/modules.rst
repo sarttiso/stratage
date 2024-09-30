@@ -1,7 +1,0 @@
-stratage
-========
-
-.. toctree::
-   :maxdepth: 4
-
-   stratage
