@@ -29,5 +29,5 @@ __all__ = ['geochron_height_check',
            'fit_floating_model',
            'age_depth',
            'model_ls',
-           'model',
+           'AgeModel',
            'model2ages']
