@@ -465,7 +465,7 @@ class AgeModel:
         vars_list (list): List of variables in the pymc.model.
     """
 
-    def __init__(self, units, geochron, sed_rates_prior, hiatuses_prior):
+    def __init__(self, units, geochron, sed_rates_prior, hiatuses_prior, ls_kwargs=None):
         """Initializes age model object for Bayesian inference of sedimentation rates and hiatuses.
 
         Args:
@@ -473,6 +473,7 @@ class AgeModel:
             geochron (geochron.Geochron): Geochron object containing geochron constraints.
             sed_rates_prior (function): Prior distribution for sedimentation rates. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is sed_rate_prior(size=size).
             hiatuses_prior (function): Prior distribution for hiatuses. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is hiatus_prior(size=size).
+            ls_kwargs (dict, optional): Keyword arguments for model_ls. Defaults to None.
         """
         # assign attributes
         self.units = units
@@ -489,7 +490,7 @@ class AgeModel:
         # trim the section to the top and bottom of the geochron constraints
         self.units_trim = trim_units(self.units, self.geochron.h)
         # create least squares model as initial guess
-        self.sed_rates_ls, self.hiatuses_ls = model_ls(self.units, self.geochron)
+        self.sed_rates_ls, self.hiatuses_ls = model_ls(self.units, self.geochron, **ls_kwargs)
         # create time increment log-like function
         loglike_op = loglike_gen(self.geochron, self.units_trim)
         # create time increment random-like function
