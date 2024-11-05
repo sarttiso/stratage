@@ -10,3 +10,5 @@ scipy
 tqdm
 matplotlib
 joblib
+nbsphinx
+myst-nb
