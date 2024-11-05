@@ -12,3 +12,4 @@ matplotlib
 joblib
 nbsphinx
 myst-nb
+sphinx-mdinclude
