@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 class Geochron:
     """Class for handling geochronologic constraints in stratigraphic sections."""
 
-    def __init__(self, h, rv, dt, prob_threshold=1e-8):
+    def __init__(self, h, rv, dt, prob_threshold=1e-8, pair_method='all'):
         """
         Initializes the Geochron class.
 
@@ -19,6 +19,7 @@ class Geochron:
             rv (array-like): List of random variables representing the temporal constraints at each height. The members of this list must be objects similar to stats.dist objects with the following methods: pdf, ppf (inverse of cdf).
             dt (float): Time spacing for computing the time increment pdfs. Units are same as rvs
             prob_threshold (float, optional): Probability threshold for determining the temporal range over which to grid. Defaults to 1e-8.
+            pair_method (str, optional): Method for pairing constraints. Defaults to 'all'. Valid options are 'all' and 'nearest'. All pairs are considered in the 'all' method, while only neighboring pairs are considered in the 'nearest' method.
 
         Attributes:
             h (list): Sorted list of stratigraphic heights.
@@ -46,7 +47,7 @@ class Geochron:
         self.rv = [self.rv[idx] for idx in sort_idx]
 
         # establish unique pairs of constraints, distinguising in a consistent way the relative stratigraphic height of each
-        self._pair_constraints()
+        self._pair_constraints(method=pair_method)
 
         # determine the temporal range over which to grid based on probability threshold
         t_mins = [x.ppf(prob_threshold) for x in self.rv]
@@ -67,19 +68,32 @@ class Geochron:
         # create time increment pdfs
         self._time_increment_pdfs()
 
-    def _pair_constraints(self):
-        """
+    def _pair_constraints(self, method='all'):
+        """Pair the geochronologic constraints that will be used to compute the time increment pdfs.
+
         Determines unique pairs of constraints, ordered such that the first response is lower stratigraphically and the second is higher. outputs indices for these pairs as upper_idx and lower_idx (which index in to h, rv)
         Again, ensure that heights are increasing up section (i.e. with time)
+
+        Args:
+            method (str, optional): Method for pairing constraints. Defaults to 'all'. Valid options are 'all' and 'nearest'. All pairs are considered in the 'all' method, while only neighboring pairs are considered in the 'nearest' method.
         """
         upper_idx = []
         lower_idx = []
-        for ii in range(len(self.h)-1):
-            for jj in range(ii+1, len(self.h)):
-                # if constraints share height, skip
-                if self.h[ii] == self.h[jj]:
+        if method == 'all':
+            # loop over all pairs of constraints
+            for ii in range(len(self.h)-1):
+                for jj in range(ii+1, len(self.h)):
+                    # if constraints share height, skip
+                    if self.h[ii] == self.h[jj]:
+                        continue
+                    upper_idx.append(jj)
+                    lower_idx.append(ii)
+        elif method == 'nearest':
+            for ii in range(len(self.h)-1):
+                # if neighboring constraints share height, skip
+                if self.h[ii] == self.h[ii+1]:
                     continue
-                upper_idx.append(jj)
+                upper_idx.append(ii+1)
                 lower_idx.append(ii)
         self.lower_idx = lower_idx
         self.upper_idx = upper_idx
