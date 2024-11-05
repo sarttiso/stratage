@@ -1,6 +1,6 @@
 import numpy as np
 from functools import partial
-import tqdm
+from tqdm.auto import tqdm
 import warnings
 
 import matplotlib.pyplot as plt
@@ -166,8 +166,8 @@ class Geochron:
 
         pdts = []
         dts = []
-        for ii in tqdm.tqdm(range(self.n_pairs),
-                            desc='Constructing time increment pdfs...'):
+        for ii in tqdm(range(self.n_pairs),
+                       desc='Constructing time increment pdfs'):
             pdt, dt = self._pairwise_increment_pdf(rv_t[self.lower_idx[ii]],
                                                    rv_pdf[self.lower_idx[ii]],
                                                    rv_t[self.upper_idx[ii]],
@@ -323,5 +323,7 @@ class Geochron:
             ax.text(min_dt, ii, cur_pair_label, fontsize=8, ha='left')
         ax.set_yticks(np.arange(self.n_pairs))
         ax.set_xlim([min_dt, max_dt])
+
+        plt.show()
 
         return ax
