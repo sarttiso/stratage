@@ -1,4 +1,5 @@
 **/.virtual_documents/
+graphics/logo.afdesign
 
 # Temporary and binary files
 *~
@@ -47,6 +48,7 @@ sdist/*
 docs/api/*
 docs/_rst/*
 docs/_build/*
+docs/jupyter_execute/*
 cover/*
 MANIFEST
 
@@ -54,3 +56,6 @@ MANIFEST
 .venv*/
 .conda*/
 .python-version
+
+# MyST build outputs
+_build

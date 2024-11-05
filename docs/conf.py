@@ -73,7 +73,16 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "nbsphinx",
-    "sphinx_mdinclude"
+    "sphinx_mdinclude",
+    "myst_nb"
+]
+
+# myst_nb config
+nb_execution_mode = "off"
+myst_enable_extensions = [
+    "amsmath",          # For math environments like align
+    "dollarmath",       # For dollar-based math (e.g., $...$)
+    "colon_fence",      # For admonitions like :::note
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -124,7 +133,7 @@ release = version
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv", ".virtual_documents/*"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # default_role = None
