@@ -3,18 +3,15 @@ import sys
 import warnings
 
 import numpy as np
-
 from numba import njit
+from joblib import Parallel, delayed
+import arviz as az
+from scipy.optimize import minimize_scalar, lsq_linear
+from tqdm.auto import tqdm
 
 import pymc as pm
 import pytensor.tensor as pt
 from pytensor.graph import Apply, Op
-
-import arviz as az
-
-from scipy.optimize import minimize_scalar, lsq_linear
-
-from tqdm import tqdm
 
 from .geochron import Geochron
 
@@ -425,9 +422,9 @@ def model_ls(units, geochron,
 
     # set defaults for bounds
     if sed_rate_bounds is None:
-        sed_rate_bounds = [1e-1, 1e2]
+        sed_rate_bounds = [1e-2, 1e2]
     if hiatus_bounds is None:
-        hiatus_bounds = [1e-1, 1e3]
+        hiatus_bounds = [0, np.inf]
 
     # bounds on model parameters
     lower_bounds = np.zeros(n_units+n_contacts)
@@ -473,7 +470,7 @@ class AgeModel:
             geochron (geochron.Geochron): Geochron object containing geochron constraints.
             sed_rates_prior (function): Prior distribution for sedimentation rates. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is sed_rate_prior(size=size).
             hiatuses_prior (function): Prior distribution for hiatuses. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is hiatus_prior(size=size).
-            ls_kwargs (dict, optional): Keyword arguments for model_ls. Defaults to None.
+            ls_kwargs (dict, optional): Keyword arguments for model_ls. Defaults to None. If None, empty dictionary is passed to model_ls.
         """
         # assign attributes
         self.units = units
@@ -490,6 +487,8 @@ class AgeModel:
         # trim the section to the top and bottom of the geochron constraints
         self.units_trim = trim_units(self.units, self.geochron.h)
         # create least squares model as initial guess
+        if ls_kwargs is None:
+            ls_kwargs = {}
         self.sed_rates_ls, self.hiatuses_ls = model_ls(self.units, self.geochron, **ls_kwargs)
         # create time increment log-like function
         loglike_op = loglike_gen(self.geochron, self.units_trim)
@@ -574,13 +573,38 @@ class AgeModel:
             trace = pm.sample(draws=draws, **kwargs)
         return trace
     
-    def trace2ages(self, trace, h=None, n_posterior=None):
+    @staticmethod
+    def fit_absolute_age(ii, sed_rates_post, hiatuses_post, units_trim, geochron, h):
+        """Fit the age model for the ii-th sample of the posterior.
+
+        Static method to work with joblib.Parallel.
+
+        Args:
+            ii (int): Index of the posterior sample.
+            sed_rates_post (ndarray): Sedimentation rates for each unit, ii-th posterior sample.
+            hiatuses_post (ndarray): Hiatuses between units, ii-th posterior sample.
+            units_trim (ndarray): Trimmed unit heights after adjusting for the top and bottom units.
+            geochron (Geochron): Geochron object containing geochron constraints.
+            h (arraylike): Heights at which to evaluate the age model.
+
+        Returns:
+            ndarray: Ages at the given height(s).
+        """
+        # Logic for fitting the age model for the ii-th sample
+        cur_times = fit_floating_model(sed_rates_post,
+                                       hiatuses_post,
+                                       units_trim,
+                                       geochron)
+        return age(cur_times, units_trim, h)
+    
+    def trace2ages(self, trace, h, n_posterior=None, n_jobs=1):
         """Transform MCMC trace to age models.
 
         Args:
             trace (arviz.InferenceData): ArviZ InferenceData object containing the MCMC trace.
-            h (arraylike, optional): Heights at which to evaluate the age model. Defaults to None. If None, only times arrays are returned.
+            h (arraylike): Heights at which to evaluate the age model. 
             n_posterior (int, optional): Number of posterior samples. Defaults to None.
+            n_jobs (int, optional): Number of parallel jobs. Defaults to 1. If 1, no parallelization is used. Uses joblib.Parallel for parallelization.
 
         Returns:
             list: List of age models; each element is a nx2 array of unit bottom and top times for n units.
@@ -593,27 +617,26 @@ class AgeModel:
             n_posterior = np.min([10000, n_chain*n_draws])
         posterior_params = az.extract(trace, num_samples=n_posterior)
         # get posterior samples
-        sed_rates_post = posterior_params.sed_rates.to_numpy().squeeze().T
-        hiatuses_post = posterior_params.hiatuses.to_numpy().squeeze().T
-        # get times
-        times_post = []
+        sed_rates_post = posterior_params.sed_rates.to_numpy()
+        hiatuses_post = posterior_params.hiatuses.to_numpy()
+        # get ages at heights h
+        t_post = []
+
         # iterate over posterior samples to generate times
-        for ii in tqdm(range(n_posterior), 
-                       desc='Anchoring floating age models'):
-            # fit floating model
-            cur_time = fit_floating_model(sed_rates_post[ii],
-                                          hiatuses_post[ii], 
-                                          self.units_trim, 
-                                          self.geochron)
-            times_post.append(cur_time)
-        # if no heights provided, return times arrays only
-        if h is None:
-            return times_post
-        # create age-depth models for heights
+        if n_jobs == 1:
+            for ii in tqdm(range(n_posterior), 
+                        desc='Anchoring floating age models'):
+                t_post.append(self.fit_absolute_age(ii, sed_rates_post[:, ii], 
+                                                    hiatuses_post[:, ii], 
+                                                    self.units_trim, self.geochron, h))
         else:
-            t_posterior = np.zeros((n_posterior, len(h)))
-            for ii in tqdm(range(n_posterior),
-                           desc='Interpolating heights to ages'):
-                t_posterior[ii, :] = age(times_post[ii], 
-                                         self.units_trim, h)
-            return times_post, t_posterior
+            t_post = Parallel(n_jobs=n_jobs)(delayed(self.fit_absolute_age)(ii, 
+                                                                            sed_rates_post[:, ii],
+                                                                            hiatuses_post[:, ii],
+                                                                            self.units_trim,
+                                                                            self.geochron,
+                                                                            h) \
+                                             for ii in tqdm(range(n_posterior),
+                                                            desc='Anchoring floating age models'))
+
+        return t_post

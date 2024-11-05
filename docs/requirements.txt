@@ -9,3 +9,4 @@ pymc
 scipy
 tqdm
 matplotlib
+joblib
