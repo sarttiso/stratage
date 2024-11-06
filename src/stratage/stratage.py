@@ -335,8 +335,12 @@ def age(times, units, heights):
     return ages.squeeze()
 
 
-def fit_floating_model(sed_rates, hiatuses, units, geochron, tol=1e-6):
-    """Fit a floating age model to geochronologic constraints by maximizing the likelihood of alignment with the geochronologic constraints.
+def fit_floating_model(sed_rates, hiatuses, units, geochron, tol=1e-6, method='random'):
+    """Fit a floating age model to geochronologic constraints 
+    
+    Two methods are implemented. One (method='max') maximizes the likelihood of alignment with the geochronologic constraints by using scipy.optimize.minimize_scalar to minimize the negative log likelihood of a time offset with respect to the distributions in absolute time of the geochronologic constraints.
+    
+    The other (method='random') samples from the total alignment likelihood and selects a random offset that is consistent with the likelihood. This method is the default.
 
     Args:
         sed_rates (arraylike): Sedimentation rates for each unit.
@@ -344,6 +348,7 @@ def fit_floating_model(sed_rates, hiatuses, units, geochron, tol=1e-6):
         units (ndarray): nx2 array of unit bottom and top heights for n units.
         geochron (geochron.Geochron): Geochron object containing geochron constraints.
         tol (float, optional): Tolerance for bounds on optimization. Defaults to 1e-6.
+        method (str, optional): Method for optimization. 'max' for maximum likelihood, 'random' for random sampling of alignment likelihood. Defaults to 'random'.
 
     Returns:
         ndarray: nx2 array of unit bottom and top ages for n units in absolute time
@@ -368,11 +373,23 @@ def fit_floating_model(sed_rates, hiatuses, units, geochron, tol=1e-6):
             ll += np.log(geochron.rv[ii].pdf(geochron_float_ages[ii] + offset))
         return -ll
 
-    # get the offset to optimally align the depth-time history
-    offset = minimize_scalar(time_offset_cost,
-                             method='bounded',
-                             bounds=[geochron.rv[0].ppf(tol),
-                                     geochron.rv[0].ppf(1-tol)]).x
+    if method == 'max':
+        # get the offset to optimally align the depth-time history
+        offset = minimize_scalar(time_offset_cost,
+                                method='bounded',
+                                bounds=[geochron.rv[0].ppf(tol),
+                                        geochron.rv[0].ppf(1-tol)]).x
+    elif method == 'random':
+        # ranges constrain interval of possible offsets based on geochron constraints
+        ranges = np.vstack([ [geochron.rv[ii].ppf(tol) - geochron_float_ages[ii], 
+                              geochron.rv[ii].ppf(1-tol) - geochron_float_ages[ii]] 
+                              for ii in range(geochron.n_constraints)])
+        t_offset = np.linspace(np.max(ranges[:, 0]), np.min(ranges[:, 1]), 100)
+        cur_like = np.exp(-time_offset_cost(t_offset))
+        cur_cdf = np.cumsum(cur_like) # cumulative distribution function
+        cur_cdf = cur_cdf/cur_cdf[-1] # normalize to unit probability
+        cur_cdf[0] = 0 # probability starts at 0
+        offset = np.interp(np.random.rand(), cur_cdf, t_offset) # use inverse transform sampling to sample offset
 
     # floating age model
     times = get_times(sed_rates, hiatuses, units)
@@ -574,7 +591,7 @@ class AgeModel:
         return trace
     
     @staticmethod
-    def fit_absolute_age(ii, sed_rates_post, hiatuses_post, units_trim, geochron, h):
+    def fit_absolute_age(ii, sed_rates_post, hiatuses_post, units_trim, geochron, h, method):
         """Fit the age model for the ii-th sample of the posterior.
 
         Static method to work with joblib.Parallel.
@@ -586,6 +603,7 @@ class AgeModel:
             units_trim (ndarray): Trimmed unit heights after adjusting for the top and bottom units.
             geochron (Geochron): Geochron object containing geochron constraints.
             h (arraylike): Heights at which to evaluate the age model.
+            method (str): Method for optimization in fit_floating_model(). 'max' for maximum likelihood, 'random' for random sampling of alignment likelihood. 
 
         Returns:
             ndarray: Ages at the given height(s).
@@ -594,10 +612,11 @@ class AgeModel:
         cur_times = fit_floating_model(sed_rates_post,
                                        hiatuses_post,
                                        units_trim,
-                                       geochron)
+                                       geochron, 
+                                       method=method)
         return age(cur_times, units_trim, h)
     
-    def trace2ages(self, trace, h, n_posterior=None, n_jobs=1):
+    def trace2ages(self, trace, h, n_posterior=None, n_jobs=1, method='random'):
         """Transform MCMC trace to age models.
 
         Args:
@@ -605,6 +624,7 @@ class AgeModel:
             h (arraylike): Heights at which to evaluate the age model. 
             n_posterior (int, optional): Number of posterior samples. Defaults to None.
             n_jobs (int, optional): Number of parallel jobs. Defaults to 1. If 1, no parallelization is used. Uses joblib.Parallel for parallelization.
+            method (str, optional): Method for optimization in fit_floating_model(). 'max' for maximum likelihood, 'random' for random sampling of alignment likelihood. Defaults to 'random'.
 
         Returns:
             list: List of age models; each element is a nx2 array of unit bottom and top times for n units.
@@ -626,16 +646,21 @@ class AgeModel:
         if n_jobs == 1:
             for ii in tqdm(range(n_posterior), 
                         desc='Anchoring floating age models'):
-                t_post.append(self.fit_absolute_age(ii, sed_rates_post[:, ii], 
+                t_post.append(self.fit_absolute_age(ii, 
+                                                    sed_rates_post[:, ii], 
                                                     hiatuses_post[:, ii], 
-                                                    self.units_trim, self.geochron, h))
+                                                    self.units_trim, 
+                                                    self.geochron,
+                                                    h,
+                                                    method=method))
         else:
             t_post = Parallel(n_jobs=n_jobs)(delayed(self.fit_absolute_age)(ii, 
                                                                             sed_rates_post[:, ii],
                                                                             hiatuses_post[:, ii],
                                                                             self.units_trim,
                                                                             self.geochron,
-                                                                            h) \
+                                                                            h,
+                                                                            method=method) \
                                              for ii in tqdm(range(n_posterior),
                                                             desc='Anchoring floating age models'))
 

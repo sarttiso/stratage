@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 class Geochron:
     """Class for handling geochronologic constraints in stratigraphic sections."""
 
-    def __init__(self, h, rv, dt, prob_threshold=1e-8, pair_method='all'):
+    def __init__(self, h, rv, dt, prob_threshold=1e-8, neighbors='all'):
         """
         Initializes the Geochron class.
 
@@ -19,7 +19,7 @@ class Geochron:
             rv (array-like): List of random variables representing the temporal constraints at each height. The members of this list must be objects similar to stats.dist objects with the following methods: pdf, ppf (inverse of cdf).
             dt (float): Time spacing for computing the time increment pdfs. Units are same as rvs
             prob_threshold (float, optional): Probability threshold for determining the temporal range over which to grid. Defaults to 1e-8.
-            pair_method (str, optional): Method for pairing constraints. Defaults to 'all'. Valid options are 'all' and 'nearest'. All pairs are considered in the 'all' method, while only neighboring pairs are considered in the 'nearest' method.
+            neighbors (str or int, optional): Number of neighbors for pairing constraints. Defaults to 'all'. Valid options are 'all' or integers up to n_constraints-1. All pairs are considered in the 'all' method. For integer values n, only n neighboring pairs are considered.
 
         Attributes:
             h (list): Sorted list of stratigraphic heights.
@@ -47,7 +47,7 @@ class Geochron:
         self.rv = [self.rv[idx] for idx in sort_idx]
 
         # establish unique pairs of constraints, distinguising in a consistent way the relative stratigraphic height of each
-        self._pair_constraints(method=pair_method)
+        self._pair_constraints(neighbors=neighbors)
 
         # determine the temporal range over which to grid based on probability threshold
         t_mins = [x.ppf(prob_threshold) for x in self.rv]
@@ -68,18 +68,23 @@ class Geochron:
         # create time increment pdfs
         self._time_increment_pdfs()
 
-    def _pair_constraints(self, method='all'):
+    def _pair_constraints(self, neighbors='all'):
         """Pair the geochronologic constraints that will be used to compute the time increment pdfs.
 
         Determines unique pairs of constraints, ordered such that the first response is lower stratigraphically and the second is higher. outputs indices for these pairs as upper_idx and lower_idx (which index in to h, rv)
         Again, ensure that heights are increasing up section (i.e. with time)
 
         Args:
-            method (str, optional): Method for pairing constraints. Defaults to 'all'. Valid options are 'all' and 'nearest'. All pairs are considered in the 'all' method, while only neighboring pairs are considered in the 'nearest' method.
+            neighbors (str or int, optional): Number of neighbors for pairing constraints. Defaults to 'all'. Valid options are 'all' or integers up to n_constraints-1. All pairs are considered in the 'all' method. For integer values n, only n neighboring pairs are considered.
         """
         upper_idx = []
         lower_idx = []
-        if method == 'all':
+        if isinstance(neighbors, str):
+            assert neighbors == 'all', 'Invalid string for pairing constraints; must be "all" or an integer.'
+        else:
+            assert isinstance(neighbors, int), 'Invalid value for pairing constraints; must be "all" or an integer.'
+            assert neighbors < self.n_constraints, f'Neighbors must be less than n_constraints = {self.n_constraints}.'
+        if neighbors == 'all':
             # loop over all pairs of constraints
             for ii in range(len(self.h)-1):
                 for jj in range(ii+1, len(self.h)):
@@ -88,13 +93,23 @@ class Geochron:
                         continue
                     upper_idx.append(jj)
                     lower_idx.append(ii)
-        elif method == 'nearest':
-            for ii in range(len(self.h)-1):
-                # if neighboring constraints share height, skip
-                if self.h[ii] == self.h[ii+1]:
-                    continue
-                upper_idx.append(ii+1)
-                lower_idx.append(ii)
+        else:
+            for ii in range(self.n_constraints-1):
+                # go forwards in neighbors
+                for jj in range(ii+1, np.min([ii+neighbors+1, self.n_constraints])):
+                    # if neighboring constraints share height, skip
+                    if self.h[ii] == self.h[jj]:
+                        continue
+                    upper_idx.append(jj)
+                    lower_idx.append(ii)
+
+        # always include pairing of  lowermost and uppermost constraints
+        # check if lowermost and uppermost constraints are already paired
+        matches = [i for i in range(len(lower_idx)) if lower_idx[i] == 0 and upper_idx[i] == self.n_constraints - 1]
+        if len(matches) == 0:
+            lower_idx.append(0)
+            upper_idx.append(self.n_constraints-1)
+
         self.lower_idx = lower_idx
         self.upper_idx = upper_idx
         self.n_pairs = len(self.lower_idx)
