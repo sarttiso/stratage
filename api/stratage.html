@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>stratage package &#8212; stratage unknown documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=0ca6144b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.4510f1fc1dee50b3e5859aac5469c37c29e427902b24a333a5f9fcb2f0b3ac41.css" />
+    <script src="../_static/documentation_options.js?v=3f1b9271"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="License" href="../license.html" />
+    <link rel="prev" title="stratage" href="modules.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="stratage-package">
+<h1>stratage package<a class="headerlink" href="#stratage-package" title="Link to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-stratage.geochron">
+<span id="stratage-geochron-module"></span><h2>stratage.geochron module<a class="headerlink" href="#module-stratage.geochron" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="stratage.geochron.Geochron">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">stratage.geochron.</span></span><span class="sig-name descname"><span class="pre">Geochron</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prob_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-08</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">neighbors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'all'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/geochron.html#Geochron"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.geochron.Geochron" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3.10/library/functions.html#object" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Class for handling geochronologic constraints in stratigraphic sections.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.geochron.Geochron.model_weights">
+<span class="sig-name descname"><span class="pre">model_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">units</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/geochron.html#Geochron.model_weights"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.geochron.Geochron.model_weights" title="Link to this definition">¶</a></dt>
+<dd><p>Calculate the weights for units and contacts based on their bounding by
+geochron constraints.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>units</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – Bottom and top heights of units in section.
+2d array (nx2) of bottom and top heights for each of n units</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>Tuple[List[List[float]], List[List[float]]]</strong> –</p>
+<ul class="simple">
+<li><p>alpha: 2D list (NxL) of weights for each of N units and L pairs of geochron constraints.</p></li>
+<li><p>beta: 2D list (MxL) of weights for each of M contacts and L pairs of geochron constraints.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3.10/library/exceptions.html#AssertionError" title="(in Python v3.10)"><strong>AssertionError</strong></a> – If any rows in alpha or beta are entirely zero, indicating unconstrained model parameters.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<ul class="simple">
+<li><p>Run after <code class="xref py py-func docutils literal notranslate"><span class="pre">stratagemc.trim_units()</span></code>.</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.geochron.Geochron.plot_constraints">
+<span class="sig-name descname"><span class="pre">plot_constraints</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/geochron.html#Geochron.plot_constraints"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.geochron.Geochron.plot_constraints" title="Link to this definition">¶</a></dt>
+<dd><p>Plot the geochronologic constraints.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ax</strong> (<a class="reference external" href="https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.html#matplotlib.axes.Axes" title="(in Matplotlib v3.9.2)"><em>matplotlib.axes.Axes</em></a>) – The axes on which to plot the constraints. If None, a new figure is created.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a>) – The number of orders of magnitude below the maximum pdf value to plot.</p></li>
+<li><p><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a>) – The scale factor for the pdfs.</p></li>
+<li><p><strong>**kwargs</strong> – Additional keyword arguments passed to the matplotlib fill_between function.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>matplotlib.axes._axes.Axes</strong> – The axes on which the constraints are plotted.</p></li>
+<li><p><strong>list</strong> – The handles for the plotted constraints.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.geochron.Geochron.plot_increment_pdfs">
+<span class="sig-name descname"><span class="pre">plot_increment_pdfs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/geochron.html#Geochron.plot_increment_pdfs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.geochron.Geochron.plot_increment_pdfs" title="Link to this definition">¶</a></dt>
+<dd><p>Plot the time increment pdfs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ax</strong> (<a class="reference external" href="https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.html#matplotlib.axes.Axes" title="(in Matplotlib v3.9.2)"><em>matplotlib.axes.Axes</em></a>) – The axes on which to plot the increment pdfs. If None, a new figure is created.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a>) – The number of orders of magnitude below the maximum pdf value to plot.</p></li>
+<li><p><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a>) – The scale factor for the pdfs.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>matplotlib.axes.Axes</strong> – The axes on which the increment pdfs are plotted.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.geochron.Geochron.straddling">
+<span class="sig-name descname"><span class="pre">straddling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">height</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/geochron.html#Geochron.straddling"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.geochron.Geochron.straddling" title="Link to this definition">¶</a></dt>
+<dd><p>Returns the indices of pairs of constraints that straddle a given height.
+:param height: The height in section.
+:type height: float</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>array-like</strong> – The indices (into self.lower_idx, self.upper_idx) that straddle the given height.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-stratage.stratage">
+<span id="stratage-stratage-module"></span><h2>stratage.stratage module<a class="headerlink" href="#module-stratage.stratage" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">AgeModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sed_rates_prior</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatuses_prior</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ls_kwargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#AgeModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.AgeModel" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3.10/library/functions.html#object" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Age model object for Bayesian inference of sedimentation rates and hiatuses.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.units">
+<span class="sig-name descname"><span class="pre">units</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.units" title="Link to this definition">¶</a></dt>
+<dd><p>nx2 array of unit bottom and top heights for n units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)">numpy.ndarray</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.geochron">
+<span class="sig-name descname"><span class="pre">geochron</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.geochron" title="Link to this definition">¶</a></dt>
+<dd><p>Geochron object containing geochron constraints.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron">geochron.Geochron</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.sed_rates_prior">
+<span class="sig-name descname"><span class="pre">sed_rates_prior</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.sed_rates_prior" title="Link to this definition">¶</a></dt>
+<dd><p>Prior distribution for sedimentation rates. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is sed_rate_prior(size=size).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>function</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.hiatuses_prior">
+<span class="sig-name descname"><span class="pre">hiatuses_prior</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.hiatuses_prior" title="Link to this definition">¶</a></dt>
+<dd><p>Prior distribution for hiatuses. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is hiatus_prior(size=size).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>function</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.n_units">
+<span class="sig-name descname"><span class="pre">n_units</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.n_units" title="Link to this definition">¶</a></dt>
+<dd><p>Number of units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.n_contacts">
+<span class="sig-name descname"><span class="pre">n_contacts</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.n_contacts" title="Link to this definition">¶</a></dt>
+<dd><p>Number of contacts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.units_trim">
+<span class="sig-name descname"><span class="pre">units_trim</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.units_trim" title="Link to this definition">¶</a></dt>
+<dd><p>Trimmed unit heights after adjusting for the top and bottom units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)">numpy.ndarray</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.sed_rates_ls">
+<span class="sig-name descname"><span class="pre">sed_rates_ls</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.sed_rates_ls" title="Link to this definition">¶</a></dt>
+<dd><p>Sedimentation rates from least squares model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)">numpy.ndarray</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.hiatuses_ls">
+<span class="sig-name descname"><span class="pre">hiatuses_ls</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.hiatuses_ls" title="Link to this definition">¶</a></dt>
+<dd><p>Hiatuses from least squares model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)">numpy.ndarray</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.model">
+<span class="sig-name descname"><span class="pre">model</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.model" title="Link to this definition">¶</a></dt>
+<dd><p>PyMC model object for Bayesian inference.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pymc.Model</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.vars_list">
+<span class="sig-name descname"><span class="pre">vars_list</span></span><a class="headerlink" href="#stratage.stratage.AgeModel.vars_list" title="Link to this definition">¶</a></dt>
+<dd><p>List of variables in the pymc.model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#list" title="(in Python v3.10)">list</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.fit_absolute_age">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">fit_absolute_age</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ii</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sed_rates_post</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatuses_post</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units_trim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#AgeModel.fit_absolute_age"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.AgeModel.fit_absolute_age" title="Link to this definition">¶</a></dt>
+<dd><p>Fit the age model for the ii-th sample of the posterior.</p>
+<p>Static method to work with joblib.Parallel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ii</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a>) – Index of the posterior sample.</p></li>
+<li><p><strong>sed_rates_post</strong> (<em>ndarray</em>) – Sedimentation rates for each unit, ii-th posterior sample.</p></li>
+<li><p><strong>hiatuses_post</strong> (<em>ndarray</em>) – Hiatuses between units, ii-th posterior sample.</p></li>
+<li><p><strong>units_trim</strong> (<em>ndarray</em>) – Trimmed unit heights after adjusting for the top and bottom units.</p></li>
+<li><p><strong>geochron</strong> (<a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron"><em>Geochron</em></a>) – Geochron object containing geochron constraints.</p></li>
+<li><p><strong>h</strong> (<em>arraylike</em>) – Heights at which to evaluate the age model.</p></li>
+<li><p><strong>method</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><em>str</em></a>) – Method for optimization in fit_floating_model(). ‘max’ for maximum likelihood, ‘random’ for random sampling of alignment likelihood.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ndarray</strong> – Ages at the given height(s).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.sample">
+<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#AgeModel.sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.AgeModel.sample" title="Link to this definition">¶</a></dt>
+<dd><p>Sample posterior distribution of sedimentation rates and hiatus durations.</p>
+<p>The output of this function must be transformed to age models.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>draws</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a><em>, </em><em>optional</em>) – Number of posterior draws. Defaults to 1000.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>arviz.InferenceData</strong> – ArviZ InferenceData object containing the MCMC trace.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.sample_prior">
+<span class="sig-name descname"><span class="pre">sample_prior</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#AgeModel.sample_prior"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.AgeModel.sample_prior" title="Link to this definition">¶</a></dt>
+<dd><p>Sample prior predictive distribution of age models.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>draws</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a><em>, </em><em>optional</em>) – Number of prior predictive draws. Defaults to 100.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>list</strong> – List of prior predictive samples of times; each element is a nx2 array of unit bottom and top times for n units.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.stratage.AgeModel.trace2ages">
+<span class="sig-name descname"><span class="pre">trace2ages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trace</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_posterior</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'random'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#AgeModel.trace2ages"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.AgeModel.trace2ages" title="Link to this definition">¶</a></dt>
+<dd><p>Transform MCMC trace to age models.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trace</strong> (<em>arviz.InferenceData</em>) – ArviZ InferenceData object containing the MCMC trace.</p></li>
+<li><p><strong>h</strong> (<em>arraylike</em>) – Heights at which to evaluate the age model.</p></li>
+<li><p><strong>n_posterior</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a><em>, </em><em>optional</em>) – Number of posterior samples. Defaults to None.</p></li>
+<li><p><strong>n_jobs</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a><em>, </em><em>optional</em>) – Number of parallel jobs. Defaults to 1. If 1, no parallelization is used. Uses joblib.Parallel for parallelization.</p></li>
+<li><p><strong>method</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><em>str</em></a><em>, </em><em>optional</em>) – Method for optimization in fit_floating_model(). ‘max’ for maximum likelihood, ‘random’ for random sampling of alignment likelihood. Defaults to ‘random’.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>list</strong> – List of age models; each element is a nx2 array of unit bottom and top times for n units.</p></li>
+<li><p><strong>numpy.ndarray</strong> – Array of age models at heights h; each row is an age model. Shape is (n_posterior, len(h)). Only returned if h is not None.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.DT_logp_l_gen">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">DT_logp_l_gen</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pdt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#DT_logp_l_gen"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.DT_logp_l_gen" title="Link to this definition">¶</a></dt>
+<dd><p>Generates a log-probability function for a numerical time increment distribution. Returned function interpolates a log probability and takes as inputs time increment(s) at which to evaluate as well as (required) time increment coordinates corresponding to the numerical pdf associated with the function. Sped up with numba.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>pdt</strong> (<em>array-like</em>) – The probability density function values for the time increments.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>numba.core.registry.CPUDispatcher</strong> – A function that computes the log-probability of a given time increment.
+The returned function, DT_logp, takes the following parameters:</p>
+<blockquote>
+<div><p>dt_query (float): The time increment for which the log-probability is to be computed.
+dt (array-like): The array of time increments corresponding to the probability density function values. Must be same length as pdt.</p>
+</div></blockquote>
+<p>The DT_logp function computes the log-probability by interpolating the probability density function values and applying sigmoid functions to ensure the values are within the valid range.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.age">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">age</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">heights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#age"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.age" title="Link to this definition">¶</a></dt>
+<dd><p>Interpolate time at given heights in strat. Times at contact heights are returned as the age of the top of the unit below the contact.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>times</strong> (<em>arraylike</em>) – nx2 array of unit bottom and top times for n units.</p></li>
+<li><p><strong>units</strong> (<em>arraylike</em>) – nx2 array of unit bottom and top heights for n units.</p></li>
+<li><p><strong>heights</strong> (<em>arraylike</em>) – Height(s) at which to evaluate the age model.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>array</strong> – Age(s) at the given height(s).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.age_depth">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">age_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">times</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#age_depth"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.age_depth" title="Link to this definition">¶</a></dt>
+<dd><p>Convert units, times arrays to age-depth curve</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>units</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – An nx2 array of bottom and top elevations for each of n units.</p></li>
+<li><p><strong>times</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – An nx2 array of bottom and top times for each of n units.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>numpy.ndarray</strong> – Vector of ages for each unit.</p></li>
+<li><p><strong>numpy.ndarray</strong> – Vector of heights for each unit.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.fit_floating_model">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">fit_floating_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sed_rates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatuses</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'random'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#fit_floating_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.fit_floating_model" title="Link to this definition">¶</a></dt>
+<dd><p>Fit a floating age model to geochronologic constraints</p>
+<p>Two methods are implemented. One (method=’max’) maximizes the likelihood of alignment with the geochronologic constraints by using scipy.optimize.minimize_scalar to minimize the negative log likelihood of a time offset with respect to the distributions in absolute time of the geochronologic constraints.</p>
+<p>The other (method=’random’) samples from the total alignment likelihood and selects a random offset that is consistent with the likelihood. This method is the default.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sed_rates</strong> (<em>arraylike</em>) – Sedimentation rates for each unit.</p></li>
+<li><p><strong>hiatuses</strong> (<em>arraylike</em>) – Hiatuses between units. Must be len(sed_rates)-1.</p></li>
+<li><p><strong>units</strong> (<em>ndarray</em>) – nx2 array of unit bottom and top heights for n units.</p></li>
+<li><p><strong>geochron</strong> (<a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron"><em>geochron.Geochron</em></a>) – Geochron object containing geochron constraints.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a><em>, </em><em>optional</em>) – Tolerance for bounds on optimization. Defaults to 1e-6.</p></li>
+<li><p><strong>method</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><em>str</em></a><em>, </em><em>optional</em>) – Method for optimization. ‘max’ for maximum likelihood, ‘random’ for random sampling of alignment likelihood. Defaults to ‘random’.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ndarray</strong> – nx2 array of unit bottom and top ages for n units in absolute time</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.floating_age">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">floating_age</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sed_rates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatuses</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">heights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#floating_age"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.floating_age" title="Link to this definition">¶</a></dt>
+<dd><p>Floating ages at heights in strat. Assumes t=0 at base of section. Times at contact heights are returned as the age of the top of the unit below the contact.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sed_rates</strong> (<em>arraylike</em>) – Sedimentation rates for each unit.</p></li>
+<li><p><strong>hiatuses</strong> (<em>arraylike</em>) – Hiatuses between units. Must be len(sed_rates)-1.</p></li>
+<li><p><strong>units</strong> (<em>arraylike</em>) – nx2 array of unit bottom and top heights for n units.</p></li>
+<li><p><strong>heights</strong> (<em>arraylike</em><em> | </em><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a>) – Height(s) at which to evaluate the age model.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>array</strong> – Age(s) at the given height(s).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.geochron_height_check">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">geochron_height_check</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unit_heights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron_heights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#geochron_height_check"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.geochron_height_check" title="Link to this definition">¶</a></dt>
+<dd><p>Ensure that geochron heights are within units and not at contacts. Also ensure that geochron heights are within the section. Run before trimming section to the top and bottom of the geochron constraints.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>unit_heights</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – Bottom and top heights of units in section.
+2d array (nx2) of bottom and top heights for each of n units</p></li>
+<li><p><strong>geochron_heights</strong> (<em>arraylike</em>) – Heights of geochron constraints in the section</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3.10/library/exceptions.html#AssertionError" title="(in Python v3.10)"><strong>AssertionError</strong></a> – If any of the geochron heights are below the section or above the section.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3.10/library/exceptions.html#AssertionError" title="(in Python v3.10)"><strong>AssertionError</strong></a> – If any of the geochron heights are at contacts.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.get_times">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">get_times</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sed_rates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatuses</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#get_times"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.get_times" title="Link to this definition">¶</a></dt>
+<dd><p>Floating times array for units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sed_rates</strong> (<em>arraylike</em>) – Sedimentation rates for each unit</p></li>
+<li><p><strong>hiatuses</strong> (<em>arraylike</em>) – Hiatuses between units</p></li>
+<li><p><strong>units</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – Bottom and top heights of units in section.
+2d array (nx2) of bottom and top heights for each of n units</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>times</strong> (<em>numpy.ndarray</em>) – Floating times array for units, same shape as units</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.loglike_gen">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">loglike_gen</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#loglike_gen"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.loglike_gen" title="Link to this definition">¶</a></dt>
+<dd><p>Returns log-likelihood object for use in PyMC.CustomDist as a likelihood for posterior sampling. See subfunction eps_logp for details on the log-likelihood computation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>geochron</strong> (<a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron"><em>geochron.Geochron</em></a>) – Geochron object containing geochronologic constraints.</p></li>
+<li><p><strong>units</strong> (<em>ndarray</em>) – nx2 array of unit bottom and top heights for n units.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>LogLike</strong> – PyTensor Op class for likelihood evaluation.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.model_ls">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">model_ls</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sed_rate_bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatus_bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#model_ls"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.model_ls" title="Link to this definition">¶</a></dt>
+<dd><p>Least squares age model fitting.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>units</strong> (<em>ndarray</em>) – nx2 array of unit bottom and top heights for n units.</p></li>
+<li><p><strong>geochron</strong> (<a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron"><em>geochron.Geochron</em></a>) – Geochron object containing geochron constraints.</p></li>
+<li><p><strong>sed_rate_bounds</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#list" title="(in Python v3.10)"><em>list</em></a><em>, </em><em>optional</em>) – Bounds on sedimentation rates. Defaults to None.</p></li>
+<li><p><strong>hiatus_bounds</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#list" title="(in Python v3.10)"><em>list</em></a><em>, </em><em>optional</em>) – Bounds on hiatuses. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>sed_rates</strong> (<em>numpy.ndarray</em>) – Sedimentation rates for each unit.</p></li>
+<li><p><strong>hiatuses</strong> (<em>numpy.ndarray</em>) – Hiatuses between units.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.randlike_gen">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">randlike_gen</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#randlike_gen"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.randlike_gen" title="Link to this definition">¶</a></dt>
+<dd><p>Generate function for generating random draws from likelihood. Permits generating prior_predictive samples from a model with the CustomDist likelihood.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>geochron</strong> (<a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron"><em>geochron.Geochron</em></a>) – Geochron object containing geochronologic constraints.</p></li>
+<li><p><strong>units</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – Bottom and top heights of units in section.
+2d array (nx2) of bottom and top heights for each of n units</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>function</strong> – Function for generating random draws from likelihood.
+The returned function, eps_rand, takes the following parameters:</p>
+<blockquote>
+<div><div class="line-block">
+<div class="line">params (array-like): Array of parameters; concatenation of sedimentation rates and hiatuses.</div>
+<div class="line">rng (numpy.random.Generator): Random number generator.</div>
+<div class="line">size (int or tuple of ints, optional): Output shape. Default is None. Last dimension must be the number of pairs of geochron constraints.</div>
+</div>
+</div></blockquote>
+<p>The function returns a numpy.ndarray of random draws.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.sigmoid">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">sigmoid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#sigmoid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.sigmoid" title="Link to this definition">¶</a></dt>
+<dd><p>Sigmoid function for numerical stability.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a><em> | </em><em>arraylike</em>) – Value to apply sigmoid to.</p></li>
+<li><p><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a><em>, </em><em>optional</em>) – Transition width scale of sigmoid. Defaults to 0.001.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>float | arraylike</strong> – Sigmoid applied to t.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.stratage.trim_units">
+<span class="sig-prename descclassname"><span class="pre">stratage.stratage.</span></span><span class="sig-name descname"><span class="pre">trim_units</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unit_heights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron_heights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#trim_units"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.stratage.trim_units" title="Link to this definition">¶</a></dt>
+<dd><p>Trim the top and bottom of the section to the top and bottom of the geochron constraints. Run after geochron_height_check.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>unit_heights</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – Bottom and top heights of units in section.
+2d array-like (nx2) of bottom and top heights for each of n units</p></li>
+<li><p><strong>geochron_heights</strong> (<em>arraylike</em>) – Heights of geochron constraints in section</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>numpy.ndarray</strong> – Trimmed unit heights after adjusting for the top and bottom units</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-stratage">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-stratage" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="stratage.AgeModel">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">AgeModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sed_rates_prior</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatuses_prior</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ls_kwargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#AgeModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.AgeModel" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3.10/library/functions.html#object" title="(in Python v3.10)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Age model object for Bayesian inference of sedimentation rates and hiatuses.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.units">
+<span class="sig-name descname"><span class="pre">units</span></span><a class="headerlink" href="#stratage.AgeModel.units" title="Link to this definition">¶</a></dt>
+<dd><p>nx2 array of unit bottom and top heights for n units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)">numpy.ndarray</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.geochron">
+<span class="sig-name descname"><span class="pre">geochron</span></span><a class="headerlink" href="#stratage.AgeModel.geochron" title="Link to this definition">¶</a></dt>
+<dd><p>Geochron object containing geochron constraints.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron">geochron.Geochron</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.sed_rates_prior">
+<span class="sig-name descname"><span class="pre">sed_rates_prior</span></span><a class="headerlink" href="#stratage.AgeModel.sed_rates_prior" title="Link to this definition">¶</a></dt>
+<dd><p>Prior distribution for sedimentation rates. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is sed_rate_prior(size=size).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>function</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.hiatuses_prior">
+<span class="sig-name descname"><span class="pre">hiatuses_prior</span></span><a class="headerlink" href="#stratage.AgeModel.hiatuses_prior" title="Link to this definition">¶</a></dt>
+<dd><p>Prior distribution for hiatuses. Must be valid as dist argument to pymc.CustomDist(dist=dist). Signature is hiatus_prior(size=size).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>function</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.n_units">
+<span class="sig-name descname"><span class="pre">n_units</span></span><a class="headerlink" href="#stratage.AgeModel.n_units" title="Link to this definition">¶</a></dt>
+<dd><p>Number of units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.n_contacts">
+<span class="sig-name descname"><span class="pre">n_contacts</span></span><a class="headerlink" href="#stratage.AgeModel.n_contacts" title="Link to this definition">¶</a></dt>
+<dd><p>Number of contacts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)">int</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.units_trim">
+<span class="sig-name descname"><span class="pre">units_trim</span></span><a class="headerlink" href="#stratage.AgeModel.units_trim" title="Link to this definition">¶</a></dt>
+<dd><p>Trimmed unit heights after adjusting for the top and bottom units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)">numpy.ndarray</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.sed_rates_ls">
+<span class="sig-name descname"><span class="pre">sed_rates_ls</span></span><a class="headerlink" href="#stratage.AgeModel.sed_rates_ls" title="Link to this definition">¶</a></dt>
+<dd><p>Sedimentation rates from least squares model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)">numpy.ndarray</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.hiatuses_ls">
+<span class="sig-name descname"><span class="pre">hiatuses_ls</span></span><a class="headerlink" href="#stratage.AgeModel.hiatuses_ls" title="Link to this definition">¶</a></dt>
+<dd><p>Hiatuses from least squares model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)">numpy.ndarray</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.model">
+<span class="sig-name descname"><span class="pre">model</span></span><a class="headerlink" href="#stratage.AgeModel.model" title="Link to this definition">¶</a></dt>
+<dd><p>PyMC model object for Bayesian inference.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pymc.Model</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="stratage.AgeModel.vars_list">
+<span class="sig-name descname"><span class="pre">vars_list</span></span><a class="headerlink" href="#stratage.AgeModel.vars_list" title="Link to this definition">¶</a></dt>
+<dd><p>List of variables in the pymc.model.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#list" title="(in Python v3.10)">list</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.AgeModel.fit_absolute_age">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">fit_absolute_age</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ii</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sed_rates_post</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatuses_post</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units_trim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#AgeModel.fit_absolute_age"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.AgeModel.fit_absolute_age" title="Link to this definition">¶</a></dt>
+<dd><p>Fit the age model for the ii-th sample of the posterior.</p>
+<p>Static method to work with joblib.Parallel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ii</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a>) – Index of the posterior sample.</p></li>
+<li><p><strong>sed_rates_post</strong> (<em>ndarray</em>) – Sedimentation rates for each unit, ii-th posterior sample.</p></li>
+<li><p><strong>hiatuses_post</strong> (<em>ndarray</em>) – Hiatuses between units, ii-th posterior sample.</p></li>
+<li><p><strong>units_trim</strong> (<em>ndarray</em>) – Trimmed unit heights after adjusting for the top and bottom units.</p></li>
+<li><p><strong>geochron</strong> (<a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron"><em>Geochron</em></a>) – Geochron object containing geochron constraints.</p></li>
+<li><p><strong>h</strong> (<em>arraylike</em>) – Heights at which to evaluate the age model.</p></li>
+<li><p><strong>method</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><em>str</em></a>) – Method for optimization in fit_floating_model(). ‘max’ for maximum likelihood, ‘random’ for random sampling of alignment likelihood.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ndarray</strong> – Ages at the given height(s).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.AgeModel.sample">
+<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#AgeModel.sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.AgeModel.sample" title="Link to this definition">¶</a></dt>
+<dd><p>Sample posterior distribution of sedimentation rates and hiatus durations.</p>
+<p>The output of this function must be transformed to age models.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>draws</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a><em>, </em><em>optional</em>) – Number of posterior draws. Defaults to 1000.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>arviz.InferenceData</strong> – ArviZ InferenceData object containing the MCMC trace.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.AgeModel.sample_prior">
+<span class="sig-name descname"><span class="pre">sample_prior</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">draws</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#AgeModel.sample_prior"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.AgeModel.sample_prior" title="Link to this definition">¶</a></dt>
+<dd><p>Sample prior predictive distribution of age models.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>draws</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a><em>, </em><em>optional</em>) – Number of prior predictive draws. Defaults to 100.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>list</strong> – List of prior predictive samples of times; each element is a nx2 array of unit bottom and top times for n units.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="stratage.AgeModel.trace2ages">
+<span class="sig-name descname"><span class="pre">trace2ages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trace</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">h</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_posterior</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'random'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#AgeModel.trace2ages"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.AgeModel.trace2ages" title="Link to this definition">¶</a></dt>
+<dd><p>Transform MCMC trace to age models.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trace</strong> (<em>arviz.InferenceData</em>) – ArviZ InferenceData object containing the MCMC trace.</p></li>
+<li><p><strong>h</strong> (<em>arraylike</em>) – Heights at which to evaluate the age model.</p></li>
+<li><p><strong>n_posterior</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a><em>, </em><em>optional</em>) – Number of posterior samples. Defaults to None.</p></li>
+<li><p><strong>n_jobs</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a><em>, </em><em>optional</em>) – Number of parallel jobs. Defaults to 1. If 1, no parallelization is used. Uses joblib.Parallel for parallelization.</p></li>
+<li><p><strong>method</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><em>str</em></a><em>, </em><em>optional</em>) – Method for optimization in fit_floating_model(). ‘max’ for maximum likelihood, ‘random’ for random sampling of alignment likelihood. Defaults to ‘random’.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>list</strong> – List of age models; each element is a nx2 array of unit bottom and top times for n units.</p></li>
+<li><p><strong>numpy.ndarray</strong> – Array of age models at heights h; each row is an age model. Shape is (n_posterior, len(h)). Only returned if h is not None.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.DT_logp_l_gen">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">DT_logp_l_gen</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pdt</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#DT_logp_l_gen"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.DT_logp_l_gen" title="Link to this definition">¶</a></dt>
+<dd><p>Generates a log-probability function for a numerical time increment distribution. Returned function interpolates a log probability and takes as inputs time increment(s) at which to evaluate as well as (required) time increment coordinates corresponding to the numerical pdf associated with the function. Sped up with numba.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>pdt</strong> (<em>array-like</em>) – The probability density function values for the time increments.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>numba.core.registry.CPUDispatcher</strong> – A function that computes the log-probability of a given time increment.
+The returned function, DT_logp, takes the following parameters:</p>
+<blockquote>
+<div><p>dt_query (float): The time increment for which the log-probability is to be computed.
+dt (array-like): The array of time increments corresponding to the probability density function values. Must be same length as pdt.</p>
+</div></blockquote>
+<p>The DT_logp function computes the log-probability by interpolating the probability density function values and applying sigmoid functions to ensure the values are within the valid range.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.age">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">age</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">heights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#age"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.age" title="Link to this definition">¶</a></dt>
+<dd><p>Interpolate time at given heights in strat. Times at contact heights are returned as the age of the top of the unit below the contact.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>times</strong> (<em>arraylike</em>) – nx2 array of unit bottom and top times for n units.</p></li>
+<li><p><strong>units</strong> (<em>arraylike</em>) – nx2 array of unit bottom and top heights for n units.</p></li>
+<li><p><strong>heights</strong> (<em>arraylike</em>) – Height(s) at which to evaluate the age model.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>array</strong> – Age(s) at the given height(s).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.age_depth">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">age_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">times</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#age_depth"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.age_depth" title="Link to this definition">¶</a></dt>
+<dd><p>Convert units, times arrays to age-depth curve</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>units</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – An nx2 array of bottom and top elevations for each of n units.</p></li>
+<li><p><strong>times</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – An nx2 array of bottom and top times for each of n units.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>numpy.ndarray</strong> – Vector of ages for each unit.</p></li>
+<li><p><strong>numpy.ndarray</strong> – Vector of heights for each unit.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.fit_floating_model">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">fit_floating_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sed_rates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatuses</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'random'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#fit_floating_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.fit_floating_model" title="Link to this definition">¶</a></dt>
+<dd><p>Fit a floating age model to geochronologic constraints</p>
+<p>Two methods are implemented. One (method=’max’) maximizes the likelihood of alignment with the geochronologic constraints by using scipy.optimize.minimize_scalar to minimize the negative log likelihood of a time offset with respect to the distributions in absolute time of the geochronologic constraints.</p>
+<p>The other (method=’random’) samples from the total alignment likelihood and selects a random offset that is consistent with the likelihood. This method is the default.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sed_rates</strong> (<em>arraylike</em>) – Sedimentation rates for each unit.</p></li>
+<li><p><strong>hiatuses</strong> (<em>arraylike</em>) – Hiatuses between units. Must be len(sed_rates)-1.</p></li>
+<li><p><strong>units</strong> (<em>ndarray</em>) – nx2 array of unit bottom and top heights for n units.</p></li>
+<li><p><strong>geochron</strong> (<a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron"><em>geochron.Geochron</em></a>) – Geochron object containing geochron constraints.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a><em>, </em><em>optional</em>) – Tolerance for bounds on optimization. Defaults to 1e-6.</p></li>
+<li><p><strong>method</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><em>str</em></a><em>, </em><em>optional</em>) – Method for optimization. ‘max’ for maximum likelihood, ‘random’ for random sampling of alignment likelihood. Defaults to ‘random’.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ndarray</strong> – nx2 array of unit bottom and top ages for n units in absolute time</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.floating_age">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">floating_age</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sed_rates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatuses</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">heights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#floating_age"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.floating_age" title="Link to this definition">¶</a></dt>
+<dd><p>Floating ages at heights in strat. Assumes t=0 at base of section. Times at contact heights are returned as the age of the top of the unit below the contact.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sed_rates</strong> (<em>arraylike</em>) – Sedimentation rates for each unit.</p></li>
+<li><p><strong>hiatuses</strong> (<em>arraylike</em>) – Hiatuses between units. Must be len(sed_rates)-1.</p></li>
+<li><p><strong>units</strong> (<em>arraylike</em>) – nx2 array of unit bottom and top heights for n units.</p></li>
+<li><p><strong>heights</strong> (<em>arraylike</em><em> | </em><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a>) – Height(s) at which to evaluate the age model.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>array</strong> – Age(s) at the given height(s).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.geochron_height_check">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">geochron_height_check</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unit_heights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron_heights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#geochron_height_check"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.geochron_height_check" title="Link to this definition">¶</a></dt>
+<dd><p>Ensure that geochron heights are within units and not at contacts. Also ensure that geochron heights are within the section. Run before trimming section to the top and bottom of the geochron constraints.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>unit_heights</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – Bottom and top heights of units in section.
+2d array (nx2) of bottom and top heights for each of n units</p></li>
+<li><p><strong>geochron_heights</strong> (<em>arraylike</em>) – Heights of geochron constraints in the section</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><a class="reference external" href="https://docs.python.org/3.10/library/exceptions.html#AssertionError" title="(in Python v3.10)"><strong>AssertionError</strong></a> – If any of the geochron heights are below the section or above the section.</p></li>
+<li><p><a class="reference external" href="https://docs.python.org/3.10/library/exceptions.html#AssertionError" title="(in Python v3.10)"><strong>AssertionError</strong></a> – If any of the geochron heights are at contacts.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.get_times">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">get_times</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sed_rates</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatuses</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#get_times"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.get_times" title="Link to this definition">¶</a></dt>
+<dd><p>Floating times array for units.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>sed_rates</strong> (<em>arraylike</em>) – Sedimentation rates for each unit</p></li>
+<li><p><strong>hiatuses</strong> (<em>arraylike</em>) – Hiatuses between units</p></li>
+<li><p><strong>units</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – Bottom and top heights of units in section.
+2d array (nx2) of bottom and top heights for each of n units</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>times</strong> (<em>numpy.ndarray</em>) – Floating times array for units, same shape as units</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.loglike_gen">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">loglike_gen</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#loglike_gen"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.loglike_gen" title="Link to this definition">¶</a></dt>
+<dd><p>Returns log-likelihood object for use in PyMC.CustomDist as a likelihood for posterior sampling. See subfunction eps_logp for details on the log-likelihood computation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>geochron</strong> (<a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron"><em>geochron.Geochron</em></a>) – Geochron object containing geochronologic constraints.</p></li>
+<li><p><strong>units</strong> (<em>ndarray</em>) – nx2 array of unit bottom and top heights for n units.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>LogLike</strong> – PyTensor Op class for likelihood evaluation.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.model_ls">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">model_ls</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">units</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sed_rate_bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hiatus_bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#model_ls"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.model_ls" title="Link to this definition">¶</a></dt>
+<dd><p>Least squares age model fitting.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>units</strong> (<em>ndarray</em>) – nx2 array of unit bottom and top heights for n units.</p></li>
+<li><p><strong>geochron</strong> (<a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron"><em>geochron.Geochron</em></a>) – Geochron object containing geochron constraints.</p></li>
+<li><p><strong>sed_rate_bounds</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#list" title="(in Python v3.10)"><em>list</em></a><em>, </em><em>optional</em>) – Bounds on sedimentation rates. Defaults to None.</p></li>
+<li><p><strong>hiatus_bounds</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#list" title="(in Python v3.10)"><em>list</em></a><em>, </em><em>optional</em>) – Bounds on hiatuses. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>sed_rates</strong> (<em>numpy.ndarray</em>) – Sedimentation rates for each unit.</p></li>
+<li><p><strong>hiatuses</strong> (<em>numpy.ndarray</em>) – Hiatuses between units.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.randlike_gen">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">randlike_gen</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">geochron</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">units</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#randlike_gen"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.randlike_gen" title="Link to this definition">¶</a></dt>
+<dd><p>Generate function for generating random draws from likelihood. Permits generating prior_predictive samples from a model with the CustomDist likelihood.</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>geochron</strong> (<a class="reference internal" href="#stratage.geochron.Geochron" title="stratage.geochron.Geochron"><em>geochron.Geochron</em></a>) – Geochron object containing geochronologic constraints.</p></li>
+<li><p><strong>units</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – Bottom and top heights of units in section.
+2d array (nx2) of bottom and top heights for each of n units</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>function</strong> – Function for generating random draws from likelihood.
+The returned function, eps_rand, takes the following parameters:</p>
+<blockquote>
+<div><div class="line-block">
+<div class="line">params (array-like): Array of parameters; concatenation of sedimentation rates and hiatuses.</div>
+<div class="line">rng (numpy.random.Generator): Random number generator.</div>
+<div class="line">size (int or tuple of ints, optional): Output shape. Default is None. Last dimension must be the number of pairs of geochron constraints.</div>
+</div>
+</div></blockquote>
+<p>The function returns a numpy.ndarray of random draws.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.sigmoid">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">sigmoid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">t</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#sigmoid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.sigmoid" title="Link to this definition">¶</a></dt>
+<dd><p>Sigmoid function for numerical stability.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a><em> | </em><em>arraylike</em>) – Value to apply sigmoid to.</p></li>
+<li><p><strong>scale</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a><em>, </em><em>optional</em>) – Transition width scale of sigmoid. Defaults to 0.001.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>float | arraylike</strong> – Sigmoid applied to t.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="stratage.trim_units">
+<span class="sig-prename descclassname"><span class="pre">stratage.</span></span><span class="sig-name descname"><span class="pre">trim_units</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unit_heights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">geochron_heights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/stratage/stratage.html#trim_units"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#stratage.trim_units" title="Link to this definition">¶</a></dt>
+<dd><p>Trim the top and bottom of the section to the top and bottom of the geochron constraints. Run after geochron_height_check.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>unit_heights</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.1)"><em>numpy.ndarray</em></a>) – Bottom and top heights of units in section.
+2d array-like (nx2) of bottom and top heights for each of n units</p></li>
+<li><p><strong>geochron_heights</strong> (<em>arraylike</em>) – Heights of geochron constraints in section</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>numpy.ndarray</strong> – Trimmed unit heights after adjusting for the top and bottom units</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>None</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">stratage</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../toy-example.html">Toy Example</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">Module Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">stratage package</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">stratage</a><ul>
+      <li>Previous: <a href="modules.html" title="previous chapter">stratage</a></li>
+      <li>Next: <a href="../license.html" title="next chapter">License</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Adrian Tasistro-Hart.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/stratage.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

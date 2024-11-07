@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>stratage.geochron &#8212; stratage unknown documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=0ca6144b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/mystnb.4510f1fc1dee50b3e5859aac5469c37c29e427902b24a333a5f9fcb2f0b3ac41.css" />
+    <script src="../../_static/documentation_options.js?v=3f1b9271"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for stratage.geochron</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">tqdm.auto</span> <span class="kn">import</span> <span class="n">tqdm</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+
+<div class="viewcode-block" id="Geochron">
+<a class="viewcode-back" href="../../api/stratage.html#stratage.geochron.Geochron">[docs]</a>
+<span class="k">class</span> <span class="nc">Geochron</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Class for handling geochronologic constraints in stratigraphic sections.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">rv</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">prob_threshold</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">,</span> <span class="n">neighbors</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initializes the Geochron class.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            h (array-like): List of stratigraphic heights at which temporal constraints</span>
+<span class="sd">            are measured. The coordinate increases up section.</span>
+<span class="sd">            rv (array-like): List of random variables representing the temporal constraints at each height. The members of this list must be objects similar to stats.dist objects with the following methods: pdf, ppf (inverse of cdf).</span>
+<span class="sd">            dt (float): Time spacing for computing the time increment pdfs. Units are same as rvs</span>
+<span class="sd">            prob_threshold (float, optional): Probability threshold for determining the temporal range over which to grid. Defaults to 1e-8.</span>
+<span class="sd">            neighbors (str or int, optional): Number of neighbors for pairing constraints. Defaults to &#39;all&#39;. Valid options are &#39;all&#39; or integers up to n_constraints-1. All pairs are considered in the &#39;all&#39; method. For integer values n, only n neighboring pairs are considered.</span>
+
+<span class="sd">        Attributes:</span>
+<span class="sd">            h (list): Sorted list of stratigraphic heights.</span>
+<span class="sd">            rv (list): Sorted list of random variables representing the temporal constraints.</span>
+<span class="sd">            n_constraints (int): Number of constraints.</span>
+<span class="sd">            n_pairs (int): Number of pairs of constraints.</span>
+<span class="sd">            _t_max (float): Maximum time to resolve</span>
+<span class="sd">            _t_min (float): Minimum time to resolve</span>
+<span class="sd">            _dt (float): Time spacing for computing the time increment pdfs.</span>
+<span class="sd">            _t (array-like): Time grid for computing the time increment pdfs.</span>
+<span class="sd">            lower_idx (list): List of indices into h and rv for the lower constraint in each pair.</span>
+<span class="sd">            upper_idx (list): List of indices into h and rv for the upper constraint in each pair.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># read in heights h, and random variables rv corresponding to the geochronologic constraints</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">h</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rv</span> <span class="o">=</span> <span class="n">rv</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="n">dt</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_constraints</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">)</span>
+
+        <span class="c1"># sort the heights and random variable representations</span>
+        <span class="n">sort_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">sort_idx</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rv</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">rv</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">sort_idx</span><span class="p">]</span>
+
+        <span class="c1"># establish unique pairs of constraints, distinguising in a consistent way the relative stratigraphic height of each</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pair_constraints</span><span class="p">(</span><span class="n">neighbors</span><span class="o">=</span><span class="n">neighbors</span><span class="p">)</span>
+
+        <span class="c1"># determine the temporal range over which to grid based on probability threshold</span>
+        <span class="n">t_mins</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="n">prob_threshold</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rv</span><span class="p">]</span>
+        <span class="n">t_maxs</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">prob_threshold</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rv</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_t_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">t_maxs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_t_min</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">t_mins</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dt</span> <span class="o">=</span> <span class="n">dt</span>  <span class="c1"># temporal resolution</span>
+
+        <span class="c1"># need to double sampling on grid to achieve desired temporal resolution (some form of Nyquist), hence the dt/2</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_t_min</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_t_max</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dt</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># verify that this grid resolves the probability distributions that were given</span>
+        <span class="c1">## TO DO</span>
+
+        <span class="c1"># save probability threshold for filtering of time grid based on each constraint&#39;s pdf</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prob_threshold</span> <span class="o">=</span> <span class="n">prob_threshold</span>
+
+        <span class="c1"># create time increment pdfs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_time_increment_pdfs</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_pair_constraints</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">neighbors</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Pair the geochronologic constraints that will be used to compute the time increment pdfs.</span>
+
+<span class="sd">        Determines unique pairs of constraints, ordered such that the first response is lower stratigraphically and the second is higher. outputs indices for these pairs as upper_idx and lower_idx (which index in to h, rv)</span>
+<span class="sd">        Again, ensure that heights are increasing up section (i.e. with time)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            neighbors (str or int, optional): Number of neighbors for pairing constraints. Defaults to &#39;all&#39;. Valid options are &#39;all&#39; or integers up to n_constraints-1. All pairs are considered in the &#39;all&#39; method. For integer values n, only n neighboring pairs are considered.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">upper_idx</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">lower_idx</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">neighbors</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">assert</span> <span class="n">neighbors</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="s1">&#39;Invalid string for pairing constraints; must be &quot;all&quot; or an integer.&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">neighbors</span><span class="p">,</span> <span class="nb">int</span><span class="p">),</span> <span class="s1">&#39;Invalid value for pairing constraints; must be &quot;all&quot; or an integer.&#39;</span>
+            <span class="k">assert</span> <span class="n">neighbors</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_constraints</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;Neighbors must be less than n_constraints = </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">n_constraints</span><span class="si">}</span><span class="s1">.&#39;</span>
+        <span class="k">if</span> <span class="n">neighbors</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span><span class="p">:</span>
+            <span class="c1"># loop over all pairs of constraints</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">)):</span>
+                    <span class="c1"># if constraints share height, skip</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="n">jj</span><span class="p">]:</span>
+                        <span class="k">continue</span>
+                    <span class="n">upper_idx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">jj</span><span class="p">)</span>
+                    <span class="n">lower_idx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_constraints</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="c1"># go forwards in neighbors</span>
+                <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">([</span><span class="n">ii</span><span class="o">+</span><span class="n">neighbors</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_constraints</span><span class="p">])):</span>
+                    <span class="c1"># if neighboring constraints share height, skip</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="n">jj</span><span class="p">]:</span>
+                        <span class="k">continue</span>
+                    <span class="n">upper_idx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">jj</span><span class="p">)</span>
+                    <span class="n">lower_idx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+
+        <span class="c1"># always include pairing of  lowermost and uppermost constraints</span>
+        <span class="c1"># check if lowermost and uppermost constraints are already paired</span>
+        <span class="n">matches</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">lower_idx</span><span class="p">))</span> <span class="k">if</span> <span class="n">lower_idx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">upper_idx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_constraints</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">matches</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">lower_idx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">upper_idx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_constraints</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">lower_idx</span> <span class="o">=</span> <span class="n">lower_idx</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">upper_idx</span> <span class="o">=</span> <span class="n">upper_idx</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_pairs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lower_idx</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Geochron.model_weights">
+<a class="viewcode-back" href="../../api/stratage.html#stratage.geochron.Geochron.model_weights">[docs]</a>
+    <span class="k">def</span> <span class="nf">model_weights</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">units</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the weights for units and contacts based on their bounding by</span>
+<span class="sd">        geochron constraints.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            units (numpy.ndarray): Bottom and top heights of units in section. </span>
+<span class="sd">                2d array (nx2) of bottom and top heights for each of n units</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Tuple[List[List[float]], List[List[float]]]:</span>
+<span class="sd">                - alpha: 2D list (NxL) of weights for each of N units and L pairs of geochron constraints.</span>
+<span class="sd">                - beta: 2D list (MxL) of weights for each of M contacts and L pairs of geochron constraints.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            AssertionError: If any rows in alpha or beta are entirely zero, indicating unconstrained model parameters.</span>
+
+<span class="sd">        Notes:</span>
+<span class="sd">            - Run after :py:func:`stratagemc.trim_units()`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">unit_thicks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">units</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="n">contacts</span> <span class="o">=</span> <span class="n">units</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">n_units</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">n_contacts</span> <span class="o">=</span> <span class="n">n_units</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="c1"># initialize</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_units</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_pairs</span><span class="p">))</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_contacts</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_pairs</span><span class="p">))</span>
+
+        <span class="c1"># loop over pairs of constraints (see notes  from 12/16/2020 for motivation of this code)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pairs</span><span class="p">):</span>
+            <span class="n">pair_top</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span>
+            <span class="n">pair_bottom</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">lower_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span>
+            <span class="c1"># units</span>
+            <span class="k">for</span> <span class="n">jj</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_units</span><span class="p">):</span>
+                <span class="n">unit_top</span> <span class="o">=</span> <span class="n">units</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+                <span class="n">unit_bottom</span> <span class="o">=</span> <span class="n">units</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+                <span class="c1"># these factors are defined in notes; need to scan</span>
+                <span class="n">top_fact</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([(</span><span class="n">unit_top</span><span class="o">-</span><span class="n">pair_top</span><span class="p">)</span><span class="o">/</span><span class="n">unit_thicks</span><span class="p">[</span><span class="n">jj</span><span class="p">],</span> <span class="mi">0</span><span class="p">]),</span> <span class="mi">1</span><span class="p">])</span>
+                <span class="n">bot_fact</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span>
+                    <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([(</span><span class="n">pair_bottom</span><span class="o">-</span><span class="n">unit_bottom</span><span class="p">)</span><span class="o">/</span><span class="n">unit_thicks</span><span class="p">[</span><span class="n">jj</span><span class="p">],</span> <span class="mi">0</span><span class="p">]),</span> <span class="mi">1</span><span class="p">])</span>
+                <span class="n">frac</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">top_fact</span> <span class="o">-</span> <span class="n">bot_fact</span>
+                <span class="n">alpha</span><span class="p">[</span><span class="n">jj</span><span class="p">,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">frac</span>
+
+        <span class="c1"># finally scale alpha by the thickness of the unit</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">unit_thicks</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pairs</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+
+        <span class="c1"># contacts</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_contacts</span><span class="p">):</span>
+            <span class="c1"># partial bounding of contacts is not a concern, so we can just deal with one set of straddling indices</span>
+            <span class="n">tot_bnd_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">straddling</span><span class="p">(</span><span class="n">contacts</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+            <span class="n">beta</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="n">tot_bnd_idx</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c1"># if any rows in either of matrices above are entirely zero, it means that there are model parameters that are completely unconstrained, which cannot be the case (at this point)</span>
+        <span class="k">assert</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">alpha</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)),</span> \
+            <span class="s1">&#39;some units are not bounded at all by geochronologic constraints&#39;</span>
+        <span class="k">assert</span> <span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">beta</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)),</span> \
+            <span class="s1">&#39;some contacts are not bounded at all by geochronologic constraints&#39;</span>
+
+        <span class="k">return</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">beta</span></div>
+
+
+    <span class="k">def</span> <span class="nf">_time_increment_pdfs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Given the provided geochronologic constraints, numerically evaluate the time increment pdfs for all pairs of constraints. These increments respect stratigrahic superosition of rv2 over rv1, meaning that it is always positive.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># get temporal bounds for each constraint that constrain given thresholds of probability (so we ignore times of zero probability)</span>
+        <span class="n">rv_t</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># list of time grids for each constraint</span>
+        <span class="n">rv_pdf</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># list of pdfs for each constraint</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_constraints</span><span class="p">):</span>
+            <span class="c1"># indices in self.t1 that contain the probability mass for the given constraint</span>
+            <span class="n">cur_up_bnd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rv</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">prob_threshold</span><span class="p">)</span>
+            <span class="n">cur_low_bnd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rv</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prob_threshold</span><span class="p">)</span>
+            <span class="n">cur_idx</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_t</span> <span class="o">&gt;</span> <span class="n">cur_low_bnd</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_t</span> <span class="o">&lt;</span> <span class="n">cur_up_bnd</span><span class="p">)</span>
+            <span class="n">rv_t</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_t</span><span class="p">[</span><span class="n">cur_idx</span><span class="p">])</span>
+            <span class="n">rv_pdf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rv</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_t</span><span class="p">[</span><span class="n">cur_idx</span><span class="p">]))</span>
+
+        <span class="c1"># warn user if any constraints have a time grid with more than 1000 points</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1000</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">rv_t</span><span class="p">]):</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Some constraints have more than 1000 points in their time grid. This may slow down the computation of time increment pdfs.&#39;</span><span class="p">)</span>
+
+        <span class="n">pdts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">dts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pairs</span><span class="p">),</span>
+                       <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;Constructing time increment pdfs&#39;</span><span class="p">):</span>
+            <span class="n">pdt</span><span class="p">,</span> <span class="n">dt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pairwise_increment_pdf</span><span class="p">(</span><span class="n">rv_t</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">lower_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]],</span>
+                                                   <span class="n">rv_pdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">lower_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]],</span>
+                                                   <span class="n">rv_t</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]],</span>
+                                                   <span class="n">rv_pdf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]])</span>
+            <span class="n">pdts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pdt</span><span class="p">)</span>
+            <span class="n">dts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">pdts</span> <span class="o">=</span> <span class="n">pdts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dts</span> <span class="o">=</span> <span class="n">dts</span>
+        <span class="c1"># assign maximum likelihood for each pair of constraints</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dts_max</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dts</span><span class="p">[</span><span class="n">ii</span><span class="p">][</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pdts</span><span class="p">[</span><span class="n">ii</span><span class="p">])]</span>
+                        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pairs</span><span class="p">)]</span>
+        <span class="c1"># shift the time increment pdfs to be centered around the maximum likelihood</span>
+        <span class="c1"># self.y</span>
+
+    <span class="k">def</span> <span class="nf">_pairwise_increment_pdf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t1</span><span class="p">,</span> <span class="n">p1</span><span class="p">,</span> <span class="n">t2</span><span class="p">,</span> <span class="n">p2</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;For a pair of constraints, numerically evaluate the time increment pdf.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            t1 (arraylike): time grid for the lower constraint</span>
+<span class="sd">            p1 (arraylike): probability density function for the lower constraint</span>
+<span class="sd">            t2 (arraylike): time grid for the upper constraint</span>
+<span class="sd">            p2 (arraylike): probability density function for the upper constraint</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            DT (arraylike): time increment pdf for the pair of constraints</span>
+<span class="sd">            y (arraylike): time increments over which DT is evaluated</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># bounds on lower</span>
+        <span class="n">l1</span><span class="p">,</span> <span class="n">u1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">t1</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">t1</span><span class="p">)</span>
+        <span class="c1"># bounds on upper</span>
+        <span class="n">l2</span><span class="p">,</span> <span class="n">u2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">t2</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">t2</span><span class="p">)</span>
+
+        <span class="c1"># vector of time increments for the pair of constraints</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="n">l2</span><span class="o">-</span><span class="n">u1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]),</span> <span class="n">u2</span><span class="o">-</span><span class="n">l1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dt</span><span class="p">)</span>
+
+        <span class="c1"># make time grid for current pair of constraints</span>
+        <span class="n">T1</span><span class="p">,</span> <span class="n">T2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">t1</span><span class="p">,</span> <span class="n">t2</span><span class="p">)</span>
+        <span class="c1"># make pdf grid for current pair of constraints</span>
+        <span class="n">P1</span><span class="p">,</span> <span class="n">P2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">p1</span><span class="p">,</span> <span class="n">p2</span><span class="p">)</span>
+
+        <span class="c1"># for the ith pair, compute joint pdf (assuming independence)</span>
+        <span class="n">PJ</span> <span class="o">=</span> <span class="n">P1</span> <span class="o">*</span> <span class="n">P2</span>
+
+        <span class="c1"># now just integrate over all dt&#39;s</span>
+        <span class="n">cdt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dt</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">ii</span><span class="p">,</span> <span class="n">cur_dt</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dt</span><span class="p">):</span>
+            <span class="c1"># impose stratigraphic superposition while computing time increment pdf (first term)</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="p">(</span><span class="n">T2</span> <span class="o">&gt;</span> <span class="n">T1</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">T2</span> <span class="o">&lt;</span> <span class="n">T1</span><span class="o">+</span><span class="n">cur_dt</span><span class="p">)</span>
+            <span class="n">cdt</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">PJ</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>
+
+        <span class="c1"># idx = np.tile(T2 &gt; T1, (len(dt), 1, 1)) &amp; \</span>
+        <span class="c1">#     (np.tile(T2, (len(dt), 1, 1)) &lt; (np.tile(T1, (len(dt), 1, 1)) +</span>
+        <span class="c1">#                                      np.reshape(dt, (-1, 1, 1))))</span>
+        <span class="c1"># # evaluate cumulative increment function here</span>
+        <span class="c1"># cdt = np.sum(PJ*idx, axis=(1, 2))</span>
+
+        <span class="c1"># normalize correctly (CDF should sum to one, the max)</span>
+        <span class="n">cdt</span> <span class="o">=</span> <span class="n">cdt</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">cdt</span><span class="p">)</span>
+        <span class="c1"># make into pdf</span>
+        <span class="n">pdt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">cdt</span><span class="p">)</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">_dt</span>
+    <span class="c1">#     cur_y = cur_y[0:-1]+dt/2 # centered difference</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">dt</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># left difference</span>
+
+        <span class="k">return</span> <span class="n">pdt</span><span class="p">,</span> <span class="n">dt</span>
+
+<div class="viewcode-block" id="Geochron.straddling">
+<a class="viewcode-back" href="../../api/stratage.html#stratage.geochron.Geochron.straddling">[docs]</a>
+    <span class="k">def</span> <span class="nf">straddling</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">height</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the indices of pairs of constraints that straddle a given height.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            height (float): The height in section.</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            array-like: The indices (into self.lower_idx, self.upper_idx) that straddle the given height.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">idx</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pairs</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">lower_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span> <span class="o">&lt;</span> <span class="n">height</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]]:</span>
+                <span class="n">idx</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ii</span><span class="p">)</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">idx</span></div>
+
+
+<div class="viewcode-block" id="Geochron.plot_constraints">
+<a class="viewcode-back" href="../../api/stratage.html#stratage.geochron.Geochron.plot_constraints">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_constraints</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Plot the geochronologic constraints.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            ax (matplotlib.axes.Axes): The axes on which to plot the constraints. If None, a new figure is created.</span>
+<span class="sd">            tol (int): The number of orders of magnitude below the maximum pdf value to plot.</span>
+<span class="sd">            scale (float): The scale factor for the pdfs.</span>
+<span class="sd">            **kwargs: Additional keyword arguments passed to the matplotlib fill_between function.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            matplotlib.axes._axes.Axes: The axes on which the constraints are plotted.</span>
+<span class="sd">            list: The handles for the plotted constraints.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Time&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Height&#39;</span><span class="p">)</span>
+
+        <span class="c1"># set up default kwargs</span>
+        <span class="n">defKwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;edgecolor&#39;</span><span class="p">:</span> <span class="s1">&#39;black&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;facecolor&#39;</span><span class="p">:</span> <span class="s1">&#39;lightgrey&#39;</span><span class="p">,</span>
+                     <span class="s1">&#39;linewidth&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="n">defKwargs</span> <span class="o">|</span> <span class="n">kwargs</span>
+
+        <span class="n">h</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_constraints</span><span class="p">):</span>
+            <span class="n">cur_pdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rv</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_t</span><span class="p">)</span>
+            <span class="c1"># only plot the part of the pdf that matters</span>
+            <span class="n">idx_pdf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">cur_pdf</span><span class="p">)</span> <span class="o">&gt;</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">cur_pdf</span><span class="p">))</span> <span class="o">-</span> <span class="n">tol</span><span class="p">)</span>
+
+            <span class="c1"># scale it to be visible</span>
+            <span class="n">pdf_scale</span> <span class="o">=</span> <span class="n">scale</span><span class="o">/</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">cur_pdf</span><span class="p">[</span><span class="n">idx_pdf</span><span class="p">])</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">cur_pdf</span><span class="p">[</span><span class="n">idx_pdf</span><span class="p">]))</span>
+            <span class="n">cur_pdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span> <span class="o">+</span> <span class="n">pdf_scale</span> <span class="o">*</span> <span class="n">cur_pdf</span>
+
+            <span class="n">h</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ax</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_t</span><span class="p">[</span><span class="n">idx_pdf</span><span class="p">],</span>
+                                <span class="n">cur_pdf</span><span class="p">[</span><span class="n">idx_pdf</span><span class="p">],</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+                                <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">ax</span><span class="p">,</span> <span class="n">h</span></div>
+
+
+<div class="viewcode-block" id="Geochron.plot_increment_pdfs">
+<a class="viewcode-back" href="../../api/stratage.html#stratage.geochron.Geochron.plot_increment_pdfs">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_increment_pdfs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Plot the time increment pdfs.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            ax (matplotlib.axes.Axes): The axes on which to plot the increment pdfs. If None, a new figure is created.</span>
+<span class="sd">            tol (int): The number of orders of magnitude below the maximum pdf value to plot.</span>
+<span class="sd">            scale (float): The scale factor for the pdfs.</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            matplotlib.axes.Axes: The axes on which the increment pdfs are plotted.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">()</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Time Increment&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Pair Index&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pairs</span><span class="p">):</span>
+            <span class="n">cur_pair_label</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;lower: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">lower_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span><span class="si">}</span><span class="s1">, upper: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">h</span><span class="w">  </span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">upper_idx</span><span class="p">[</span><span class="n">ii</span><span class="p">]]</span><span class="si">}</span><span class="s1">&#39;</span>
+            <span class="n">cur_pdf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pdts</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+            <span class="n">min_dt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dts</span><span class="p">])</span>
+            <span class="n">max_dt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dts</span><span class="p">])</span>
+            <span class="n">pdf_scale</span> <span class="o">=</span> <span class="n">scale</span><span class="o">/</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">cur_pdf</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">cur_pdf</span><span class="p">))</span>
+            <span class="n">cur_pdf</span> <span class="o">=</span> <span class="n">ii</span> <span class="o">+</span> <span class="n">pdf_scale</span> <span class="o">*</span> <span class="n">cur_pdf</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">fill_between</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dts</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span>
+                            <span class="n">cur_pdf</span><span class="p">,</span>
+                            <span class="n">ii</span><span class="p">,</span>
+                            <span class="n">linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                            <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+                            <span class="n">color</span><span class="o">=</span><span class="s1">&#39;lightgrey&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">min_dt</span><span class="p">,</span> <span class="n">ii</span><span class="p">,</span> <span class="n">cur_pair_label</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_pairs</span><span class="p">))</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="n">min_dt</span><span class="p">,</span> <span class="n">max_dt</span><span class="p">])</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">ax</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">stratage</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../toy-example.html">Toy Example</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api/modules.html">Module Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Adrian Tasistro-Hart.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
