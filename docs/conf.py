@@ -72,17 +72,18 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
-    "nbsphinx",
     "sphinx_mdinclude",
-    "myst_nb"
+    "myst_nb",
 ]
 
 # myst_nb config
 nb_execution_mode = "off"
+nb_execution_output_dir = "notebook_output"
 myst_enable_extensions = [
     "amsmath",          # For math environments like align
     "dollarmath",       # For dollar-based math (e.g., $...$)
     "colon_fence",      # For admonitions like :::note
+    "html_admonition"
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -133,7 +134,7 @@ release = version
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv", ".virtual_documents/*"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv", ".virtual_documents/*" , "jupyter_execute", "**/jupyter_execute/*"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # default_role = None
@@ -199,6 +200,9 @@ html_theme_options = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+
+# Paths for other static files
+# html_extra_path = ["../graphics"]
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
