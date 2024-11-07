@@ -8,15 +8,10 @@ StratAge uses Markov Chain Monte Carlo sampling to estimate posterior distributi
 
 ## Installation
 
-StratAge can be installed from `pip`:
+StratAge can be installed from PyPI:
 
 ```bash
 pip install stratage
-```
-
-Alternatively, use `conda`:
-```bash
-conda install conda-forge::stratage
 ```
 
 ## Usage

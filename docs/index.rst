@@ -1,10 +1,8 @@
-========
-StratAge
-========
+.. ========
+.. StratAge
+.. ========
 
-This is the documentation of **stratage**.
-
-.. mdinclude:: index-body.md
+.. mdinclude:: ../readme.md
 
 Contents
 ========
