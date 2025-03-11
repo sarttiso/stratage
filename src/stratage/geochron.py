@@ -2,6 +2,7 @@ import numpy as np
 from tqdm.auto import tqdm
 
 import matplotlib.pyplot as plt
+from joblib import Parallel, delayed
 
 
 class Geochron:
@@ -21,6 +22,8 @@ class Geochron:
         Probability threshold for determining the temporal range over which to grid. Defaults to 1e-4.
     neighbors: str or int, optional
         Number of neighbors for pairing constraints. Defaults to 'all'. Valid options are 'all' or integers up to n_constraints-1. All pairs are considered in the 'all' method. For integer values n, only n neighboring pairs are considered.
+    n_jobs: int, optional
+        Number of jobs to run in parallel for computing time increment pdfs. Defaults to 1
 
     Attributes
     ----------
@@ -42,7 +45,7 @@ class Geochron:
         List of indices into h and rv for the upper constraint in each pair.
     """
 
-    def __init__(self, h, rv, nt=500, ndt=100, prob_threshold=1e-4, neighbors='all'):
+    def __init__(self, h, rv, nt=500, ndt=100, prob_threshold=1e-4, neighbors='all', n_jobs=1):
         """Initialize the Geochron object.
         """
 
@@ -68,7 +71,7 @@ class Geochron:
         self.prob_threshold = prob_threshold
 
         # create time increment pdfs
-        self._time_increment_pdfs()
+        self._time_increment_pdfs(n_jobs=n_jobs)
 
     def _pair_constraints(self, neighbors='all'):
         """Pair the geochronologic constraints that will be used to compute the time increment pdfs.
@@ -186,7 +189,7 @@ class Geochron:
 
         return alpha, beta
 
-    def _time_increment_pdfs(self):
+    def _time_increment_pdfs(self, n_jobs=1):
         """
         Given the provided geochronologic constraints, numerically evaluate the time increment pdfs for all pairs of constraints. These increments respect stratigrahic superosition of rv2 over rv1, meaning that it is always positive.
         """
@@ -201,16 +204,25 @@ class Geochron:
             rv_pdf.append(cur_pdf)
 
         # compute pairwise increment pdfs
-        pdts = []
-        dts = []
-        for ii in tqdm(range(self.n_pairs),
-                       desc='Constructing time increment pdfs'):
-            pdt, dt = self._pairwise_increment_pdf(rv_t[self.lower_idx[ii]],
-                                                   rv_pdf[self.lower_idx[ii]],
-                                                   rv_t[self.upper_idx[ii]],
-                                                   rv_pdf[self.upper_idx[ii]])
-            pdts.append(pdt)
-            dts.append(dt)
+        if n_jobs == 1:
+            pdts = []
+            dts = []
+            for ii in tqdm(range(self.n_pairs),
+                        desc='Constructing time increment pdfs'):
+                pdt, dt = self._pairwise_increment_pdf(rv_t[self.lower_idx[ii]],
+                                                    rv_pdf[self.lower_idx[ii]],
+                                                    rv_t[self.upper_idx[ii]],
+                                                    rv_pdf[self.upper_idx[ii]])
+                pdts.append(pdt)
+                dts.append(dt)
+        else:
+            res = Parallel(n_jobs=n_jobs)(delayed(self._pairwise_increment_pdf)(rv_t[self.lower_idx[ii]],
+                                                                                rv_pdf[self.lower_idx[ii]],
+                                                                                rv_t[self.upper_idx[ii]],
+                                                                                rv_pdf[self.upper_idx[ii]])
+                                          for ii in tqdm(range(self.n_pairs),
+                                                         desc='Constructing time increment pdfs'))
+            pdts, dts = zip(*res)
 
         self.pdts = pdts
         self.dts = dts
