@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>numba.core.decorators &#8212; stratage unknown documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/alabaster.css?v=0ca6144b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.4510f1fc1dee50b3e5859aac5469c37c29e427902b24a333a5f9fcb2f0b3ac41.css" />
+    <script src="../../../_static/documentation_options.js?v=3f1b9271"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for numba.core.decorators</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Define @jit and related decorators.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="kn">from</span> <span class="nn">numba.core.errors</span> <span class="kn">import</span> <span class="n">DeprecationError</span><span class="p">,</span> <span class="n">NumbaDeprecationWarning</span>
+<span class="kn">from</span> <span class="nn">numba.stencils.stencil</span> <span class="kn">import</span> <span class="n">stencil</span>
+<span class="kn">from</span> <span class="nn">numba.core</span> <span class="kn">import</span> <span class="n">config</span><span class="p">,</span> <span class="n">extending</span><span class="p">,</span> <span class="n">sigutils</span><span class="p">,</span> <span class="n">registry</span>
+
+<span class="n">_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="c1"># -----------------------------------------------------------------------------</span>
+<span class="c1"># Decorators</span>
+
+<span class="n">_msg_deprecated_signature_arg</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;Deprecated keyword argument `</span><span class="si">{0}</span><span class="s2">`. &quot;</span>
+                                 <span class="s2">&quot;Signatures should be passed as the first &quot;</span>
+                                 <span class="s2">&quot;positional argument.&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">jit</span><span class="p">(</span><span class="n">signature_or_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">locals</span><span class="o">=</span><span class="p">{},</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">pipeline_class</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">boundscheck</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This decorator is used to compile a Python function into native code.</span>
+
+<span class="sd">    Args</span>
+<span class="sd">    -----</span>
+<span class="sd">    signature_or_function:</span>
+<span class="sd">        The (optional) signature or list of signatures to be compiled.</span>
+<span class="sd">        If not passed, required signatures will be compiled when the</span>
+<span class="sd">        decorated function is called, depending on the argument values.</span>
+<span class="sd">        As a convenience, you can directly pass the function to be compiled</span>
+<span class="sd">        instead.</span>
+
+<span class="sd">    locals: dict</span>
+<span class="sd">        Mapping of local variable names to Numba types. Used to override the</span>
+<span class="sd">        types deduced by Numba&#39;s type inference engine.</span>
+
+<span class="sd">    pipeline_class: type numba.compiler.CompilerBase</span>
+<span class="sd">            The compiler pipeline type for customizing the compilation stages.</span>
+
+<span class="sd">    options:</span>
+<span class="sd">        For a cpu target, valid options are:</span>
+<span class="sd">            nopython: bool</span>
+<span class="sd">                Set to True to disable the use of PyObjects and Python API</span>
+<span class="sd">                calls. The default behavior is to allow the use of PyObjects</span>
+<span class="sd">                and Python API. Default value is True.</span>
+
+<span class="sd">            forceobj: bool</span>
+<span class="sd">                Set to True to force the use of PyObjects for every value.</span>
+<span class="sd">                Default value is False.</span>
+
+<span class="sd">            looplift: bool</span>
+<span class="sd">                Set to True to enable jitting loops in nopython mode while</span>
+<span class="sd">                leaving surrounding code in object mode. This allows functions</span>
+<span class="sd">                to allocate NumPy arrays and use Python objects, while the</span>
+<span class="sd">                tight loops in the function can still be compiled in nopython</span>
+<span class="sd">                mode. Any arrays that the tight loop uses should be created</span>
+<span class="sd">                before the loop is entered. Default value is True.</span>
+
+<span class="sd">            error_model: str</span>
+<span class="sd">                The error-model affects divide-by-zero behavior.</span>
+<span class="sd">                Valid values are &#39;python&#39; and &#39;numpy&#39;. The &#39;python&#39; model</span>
+<span class="sd">                raises exception.  The &#39;numpy&#39; model sets the result to</span>
+<span class="sd">                *+/-inf* or *nan*. Default value is &#39;python&#39;.</span>
+
+<span class="sd">            inline: str or callable</span>
+<span class="sd">                The inline option will determine whether a function is inlined</span>
+<span class="sd">                at into its caller if called. String options are &#39;never&#39;</span>
+<span class="sd">                (default) which will never inline, and &#39;always&#39;, which will</span>
+<span class="sd">                always inline. If a callable is provided it will be called with</span>
+<span class="sd">                the call expression node that is requesting inlining, the</span>
+<span class="sd">                caller&#39;s IR and callee&#39;s IR as arguments, it is expected to</span>
+<span class="sd">                return Truthy as to whether to inline.</span>
+<span class="sd">                NOTE: This inlining is performed at the Numba IR level and is in</span>
+<span class="sd">                no way related to LLVM inlining.</span>
+
+<span class="sd">            boundscheck: bool or None</span>
+<span class="sd">                Set to True to enable bounds checking for array indices. Out</span>
+<span class="sd">                of bounds accesses will raise IndexError. The default is to</span>
+<span class="sd">                not do bounds checking. If False, bounds checking is disabled,</span>
+<span class="sd">                out of bounds accesses can produce garbage results or segfaults.</span>
+<span class="sd">                However, enabling bounds checking will slow down typical</span>
+<span class="sd">                functions, so it is recommended to only use this flag for</span>
+<span class="sd">                debugging. You can also set the NUMBA_BOUNDSCHECK environment</span>
+<span class="sd">                variable to 0 or 1 to globally override this flag. The default</span>
+<span class="sd">                value is None, which under normal execution equates to False,</span>
+<span class="sd">                but if debug is set to True then bounds checking will be</span>
+<span class="sd">                enabled.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    --------</span>
+<span class="sd">    A callable usable as a compiled function.  Actual compiling will be</span>
+<span class="sd">    done lazily if no explicit signatures are passed.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    The function can be used in the following ways:</span>
+
+<span class="sd">    1) jit(signatures, **targetoptions) -&gt; jit(function)</span>
+
+<span class="sd">        Equivalent to:</span>
+
+<span class="sd">            d = dispatcher(function, targetoptions)</span>
+<span class="sd">            for signature in signatures:</span>
+<span class="sd">                d.compile(signature)</span>
+
+<span class="sd">        Create a dispatcher object for a python function.  Then, compile</span>
+<span class="sd">        the function with the given signature(s).</span>
+
+<span class="sd">        Example:</span>
+
+<span class="sd">            @jit(&quot;int32(int32, int32)&quot;)</span>
+<span class="sd">            def foo(x, y):</span>
+<span class="sd">                return x + y</span>
+
+<span class="sd">            @jit([&quot;int32(int32, int32)&quot;, &quot;float32(float32, float32)&quot;])</span>
+<span class="sd">            def bar(x, y):</span>
+<span class="sd">                return x + y</span>
+
+<span class="sd">    2) jit(function, **targetoptions) -&gt; dispatcher</span>
+
+<span class="sd">        Create a dispatcher function object that specializes at call site.</span>
+
+<span class="sd">        Examples:</span>
+
+<span class="sd">            @jit</span>
+<span class="sd">            def foo(x, y):</span>
+<span class="sd">                return x + y</span>
+
+<span class="sd">            @jit(nopython=True)</span>
+<span class="sd">            def bar(x, y):</span>
+<span class="sd">                return x + y</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">forceobj</span> <span class="o">=</span> <span class="n">options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;forceobj&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s1">&#39;argtypes&#39;</span> <span class="ow">in</span> <span class="n">options</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">DeprecationError</span><span class="p">(</span><span class="n">_msg_deprecated_signature_arg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;argtypes&#39;</span><span class="p">))</span>
+    <span class="k">if</span> <span class="s1">&#39;restype&#39;</span> <span class="ow">in</span> <span class="n">options</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">DeprecationError</span><span class="p">(</span><span class="n">_msg_deprecated_signature_arg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;restype&#39;</span><span class="p">))</span>
+    <span class="n">nopython</span> <span class="o">=</span> <span class="n">options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;nopython&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">nopython</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">nopython</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">bool</span><span class="p">,</span> <span class="s2">&quot;nopython option must be a bool&quot;</span>
+    <span class="k">if</span> <span class="n">nopython</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">and</span> <span class="n">forceobj</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Only one of &#39;nopython&#39; or &#39;forceobj&#39; can be True.&quot;</span><span class="p">)</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="n">options</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_target&#39;</span><span class="p">,</span> <span class="s1">&#39;cpu&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">nopython</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;The keyword argument &#39;nopython=False&#39; was supplied. From &quot;</span>
+               <span class="s2">&quot;Numba 0.59.0 the default is True and supplying this argument &quot;</span>
+               <span class="s2">&quot;has no effect.&quot;</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">NumbaDeprecationWarning</span><span class="p">)</span>
+    <span class="c1"># nopython is True by default since 0.59.0, but if `forceobj` is set</span>
+    <span class="c1"># `nopython` needs to set to False so that things like typing of args in the</span>
+    <span class="c1"># dispatcher layer continues to work.</span>
+    <span class="k">if</span> <span class="n">forceobj</span><span class="p">:</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;nopython&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;nopython&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;boundscheck&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">boundscheck</span>
+
+    <span class="c1"># Handle signature</span>
+    <span class="k">if</span> <span class="n">signature_or_function</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># No signature, no function</span>
+        <span class="n">pyfunc</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">sigs</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">signature_or_function</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="c1"># A list of signatures is passed</span>
+        <span class="n">pyfunc</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">sigs</span> <span class="o">=</span> <span class="n">signature_or_function</span>
+    <span class="k">elif</span> <span class="n">sigutils</span><span class="o">.</span><span class="n">is_signature</span><span class="p">(</span><span class="n">signature_or_function</span><span class="p">):</span>
+        <span class="c1"># A single signature is passed</span>
+        <span class="n">pyfunc</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">sigs</span> <span class="o">=</span> <span class="p">[</span><span class="n">signature_or_function</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># A function is passed</span>
+        <span class="n">pyfunc</span> <span class="o">=</span> <span class="n">signature_or_function</span>
+        <span class="n">sigs</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">dispatcher_args</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">pipeline_class</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">dispatcher_args</span><span class="p">[</span><span class="s1">&#39;pipeline_class&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pipeline_class</span>
+    <span class="n">wrapper</span> <span class="o">=</span> <span class="n">_jit</span><span class="p">(</span><span class="n">sigs</span><span class="p">,</span> <span class="nb">locals</span><span class="o">=</span><span class="nb">locals</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">target</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="n">cache</span><span class="p">,</span>
+                   <span class="n">targetoptions</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> <span class="o">**</span><span class="n">dispatcher_args</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">pyfunc</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">wrapper</span><span class="p">(</span><span class="n">pyfunc</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">wrapper</span>
+
+
+<span class="k">def</span> <span class="nf">_jit</span><span class="p">(</span><span class="n">sigs</span><span class="p">,</span> <span class="nb">locals</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">cache</span><span class="p">,</span> <span class="n">targetoptions</span><span class="p">,</span> <span class="o">**</span><span class="n">dispatcher_args</span><span class="p">):</span>
+
+    <span class="kn">from</span> <span class="nn">numba.core.target_extension</span> <span class="kn">import</span> <span class="n">resolve_dispatcher_from_str</span>
+    <span class="n">dispatcher</span> <span class="o">=</span> <span class="n">resolve_dispatcher_from_str</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">extending</span><span class="o">.</span><span class="n">is_jitted</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s2">&quot;A jit decorator was called on an already jitted function &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">func</span><span class="si">}</span><span class="s2">.  If trying to access the original python &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;function, use the </span><span class="si">{</span><span class="n">func</span><span class="si">}</span><span class="s2">.py_func attribute.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="s2">&quot;The decorated object is not a function (got type &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">func</span><span class="p">)</span><span class="si">}</span><span class="s2">).&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">ENABLE_CUDASIM</span> <span class="ow">and</span> <span class="n">target</span> <span class="o">==</span> <span class="s1">&#39;cuda&#39;</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">numba</span> <span class="kn">import</span> <span class="n">cuda</span>
+            <span class="k">return</span> <span class="n">cuda</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">DISABLE_JIT</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">target</span> <span class="o">==</span> <span class="s1">&#39;npyufunc&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">func</span>
+        <span class="n">disp</span> <span class="o">=</span> <span class="n">dispatcher</span><span class="p">(</span><span class="n">py_func</span><span class="o">=</span><span class="n">func</span><span class="p">,</span> <span class="nb">locals</span><span class="o">=</span><span class="nb">locals</span><span class="p">,</span>
+                          <span class="n">targetoptions</span><span class="o">=</span><span class="n">targetoptions</span><span class="p">,</span>
+                          <span class="o">**</span><span class="n">dispatcher_args</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cache</span><span class="p">:</span>
+            <span class="n">disp</span><span class="o">.</span><span class="n">enable_caching</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">sigs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Register the Dispatcher to the type inference mechanism,</span>
+            <span class="c1"># even though the decorator hasn&#39;t returned yet.</span>
+            <span class="kn">from</span> <span class="nn">numba.core</span> <span class="kn">import</span> <span class="n">typeinfer</span>
+            <span class="k">with</span> <span class="n">typeinfer</span><span class="o">.</span><span class="n">register_dispatcher</span><span class="p">(</span><span class="n">disp</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">sig</span> <span class="ow">in</span> <span class="n">sigs</span><span class="p">:</span>
+                    <span class="n">disp</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+                <span class="n">disp</span><span class="o">.</span><span class="n">disable_compile</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">disp</span>
+
+    <span class="k">return</span> <span class="n">wrapper</span>
+
+
+<div class="viewcode-block" id="njit">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.njit">[docs]</a>
+<span class="k">def</span> <span class="nf">njit</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kws</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Equivalent to jit(nopython=True)</span>
+
+<span class="sd">    See documentation for jit function/decorator for full description.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="s1">&#39;nopython&#39;</span> <span class="ow">in</span> <span class="n">kws</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;nopython is set for njit and is ignored&#39;</span><span class="p">,</span> <span class="ne">RuntimeWarning</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s1">&#39;forceobj&#39;</span> <span class="ow">in</span> <span class="n">kws</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;forceobj is set for njit and is ignored&#39;</span><span class="p">,</span> <span class="ne">RuntimeWarning</span><span class="p">)</span>
+        <span class="k">del</span> <span class="n">kws</span><span class="p">[</span><span class="s1">&#39;forceobj&#39;</span><span class="p">]</span>
+    <span class="n">kws</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;nopython&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+    <span class="k">return</span> <span class="n">jit</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kws</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span> <span class="nf">cfunc</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="nb">locals</span><span class="o">=</span><span class="p">{},</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pipeline_class</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This decorator is used to compile a Python function into a C callback</span>
+<span class="sd">    usable with foreign C libraries.</span>
+
+<span class="sd">    Usage::</span>
+<span class="sd">        @cfunc(&quot;float64(float64, float64)&quot;, nopython=True, cache=True)</span>
+<span class="sd">        def add(a, b):</span>
+<span class="sd">            return a + b</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sig</span> <span class="o">=</span> <span class="n">sigutils</span><span class="o">.</span><span class="n">normalize_signature</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">numba.core.ccallback</span> <span class="kn">import</span> <span class="n">CFunc</span>
+        <span class="n">additional_args</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">pipeline_class</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">additional_args</span><span class="p">[</span><span class="s1">&#39;pipeline_class&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pipeline_class</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">CFunc</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">sig</span><span class="p">,</span> <span class="nb">locals</span><span class="o">=</span><span class="nb">locals</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">,</span> <span class="o">**</span><span class="n">additional_args</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cache</span><span class="p">:</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">enable_caching</span><span class="p">()</span>
+        <span class="n">res</span><span class="o">.</span><span class="n">compile</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">res</span>
+
+    <span class="k">return</span> <span class="n">wrapper</span>
+
+
+<span class="k">def</span> <span class="nf">jit_module</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Automatically ``jit``-wraps functions defined in a Python module</span>
+
+<span class="sd">    Note that ``jit_module`` should only be called at the end of the module to</span>
+<span class="sd">    be jitted. In addition, only functions which are defined in the module</span>
+<span class="sd">    ``jit_module`` is called from are considered for automatic jit-wrapping.</span>
+<span class="sd">    See the Numba documentation for more information about what can/cannot be</span>
+<span class="sd">    jitted.</span>
+
+<span class="sd">    :param kwargs: Keyword arguments to pass to ``jit`` such as ``nopython``</span>
+<span class="sd">                   or ``error_model``.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Get the module jit_module is being called from</span>
+    <span class="n">frame</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">stack</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">module</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmodule</span><span class="p">(</span><span class="n">frame</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="c1"># Replace functions in module with jit-wrapped versions</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">module</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="ow">and</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmodule</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span> <span class="o">==</span> <span class="n">module</span><span class="p">:</span>
+            <span class="n">_logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Auto decorating function </span><span class="si">{}</span><span class="s2"> from module </span><span class="si">{}</span><span class="s2"> with jit &quot;</span>
+                          <span class="s2">&quot;and options: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">module</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">))</span>
+            <span class="n">module</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">jit</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../index.html">stratage</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../toy-example.html">Toy Example</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">Module Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, Adrian Tasistro-Hart.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

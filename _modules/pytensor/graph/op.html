@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pytensor.graph.op &#8212; stratage unknown documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/basic.css?v=686e5160" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/alabaster.css?v=0ca6144b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.4510f1fc1dee50b3e5859aac5469c37c29e427902b24a333a5f9fcb2f0b3ac41.css" />
+    <script src="../../../_static/documentation_options.js?v=3f1b9271"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for pytensor.graph.op</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span> <span class="nn">collections.abc</span> <span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">TYPE_CHECKING</span><span class="p">,</span>
+    <span class="n">Any</span><span class="p">,</span>
+    <span class="n">Protocol</span><span class="p">,</span>
+    <span class="n">TypeVar</span><span class="p">,</span>
+    <span class="n">cast</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">pytensor</span>
+<span class="kn">from</span> <span class="nn">pytensor.configdefaults</span> <span class="kn">import</span> <span class="n">config</span>
+<span class="kn">from</span> <span class="nn">pytensor.graph.basic</span> <span class="kn">import</span> <span class="n">Apply</span><span class="p">,</span> <span class="n">Variable</span>
+<span class="kn">from</span> <span class="nn">pytensor.graph.utils</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">MetaObject</span><span class="p">,</span>
+    <span class="n">TestValueError</span><span class="p">,</span>
+    <span class="n">add_tag_trace</span><span class="p">,</span>
+    <span class="n">get_variable_trace_string</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">pytensor.compile.function.types</span> <span class="kn">import</span> <span class="n">Function</span>
+    <span class="kn">from</span> <span class="nn">pytensor.graph.fg</span> <span class="kn">import</span> <span class="n">FunctionGraph</span>
+    <span class="kn">from</span> <span class="nn">pytensor.graph.type</span> <span class="kn">import</span> <span class="n">Type</span>
+
+<span class="n">StorageCellType</span> <span class="o">=</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span>
+<span class="n">StorageMapType</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Variable</span><span class="p">,</span> <span class="n">StorageCellType</span><span class="p">]</span>
+<span class="n">ComputeMapType</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Variable</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bool</span><span class="p">]]</span>
+<span class="n">InputStorageType</span> <span class="o">=</span> <span class="nb">list</span><span class="p">[</span><span class="n">StorageCellType</span><span class="p">]</span>
+<span class="n">OutputStorageType</span> <span class="o">=</span> <span class="nb">list</span><span class="p">[</span><span class="n">StorageCellType</span><span class="p">]</span>
+<span class="n">PerformMethodType</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Apply</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">OutputStorageType</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span>
+<span class="n">BasicThunkType</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span>
+<span class="n">ThunkCallableType</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span>
+    <span class="p">[</span><span class="n">PerformMethodType</span><span class="p">,</span> <span class="n">StorageMapType</span><span class="p">,</span> <span class="n">ComputeMapType</span><span class="p">,</span> <span class="n">Apply</span><span class="p">],</span> <span class="kc">None</span>
+<span class="p">]</span>
+
+<span class="n">C</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;C&quot;</span><span class="p">,</span> <span class="n">bound</span><span class="o">=</span><span class="n">Callable</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">ThunkType</span><span class="p">(</span><span class="n">Protocol</span><span class="p">[</span><span class="n">C</span><span class="p">]):</span>
+    <span class="n">inputs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]]</span>
+    <span class="n">outputs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]]</span>
+    <span class="n">lazy</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="fm">__call__</span><span class="p">:</span> <span class="n">C</span>
+    <span class="n">perform</span><span class="p">:</span> <span class="n">PerformMethodType</span>
+
+
+<span class="k">def</span> <span class="nf">is_thunk_type</span><span class="p">(</span><span class="n">thunk</span><span class="p">:</span> <span class="n">ThunkCallableType</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ThunkType</span><span class="p">:</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="n">ThunkType</span><span class="p">,</span> <span class="n">thunk</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+
+
+<span class="k">def</span> <span class="nf">compute_test_value</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Apply</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Computes the test value of a node.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    node : Apply</span>
+<span class="sd">        The `Apply` node for which the test value is computed.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    None</span>
+<span class="sd">        The `tag.test_value`\s are updated in each `Variable` in `node.outputs`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Gather the test values for each input of the node</span>
+    <span class="n">storage_map</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">compute_map</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ins</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">inputs</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">storage_map</span><span class="p">[</span><span class="n">ins</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">ins</span><span class="o">.</span><span class="n">get_test_value</span><span class="p">()]</span>
+            <span class="n">compute_map</span><span class="p">[</span><span class="n">ins</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="kc">True</span><span class="p">]</span>
+        <span class="k">except</span> <span class="n">TestValueError</span><span class="p">:</span>
+            <span class="c1"># no test-value was specified, act accordingly</span>
+            <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">compute_test_value</span> <span class="o">==</span> <span class="s2">&quot;warn&quot;</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Warning, Cannot compute test value: input </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">ins</span><span class="si">}</span><span class="s2">) of Op </span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> missing default value&quot;</span><span class="p">,</span>
+                    <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">return</span>
+            <span class="k">elif</span> <span class="n">config</span><span class="o">.</span><span class="n">compute_test_value</span> <span class="o">==</span> <span class="s2">&quot;raise&quot;</span><span class="p">:</span>
+                <span class="n">detailed_err_msg</span> <span class="o">=</span> <span class="n">get_variable_trace_string</span><span class="p">(</span><span class="n">ins</span><span class="p">)</span>
+
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Cannot compute test value: input </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">ins</span><span class="si">}</span><span class="s2">) of Op </span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> missing default value. </span><span class="si">{</span><span class="n">detailed_err_msg</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="n">config</span><span class="o">.</span><span class="n">compute_test_value</span> <span class="o">==</span> <span class="s2">&quot;ignore&quot;</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="k">elif</span> <span class="n">config</span><span class="o">.</span><span class="n">compute_test_value</span> <span class="o">==</span> <span class="s2">&quot;pdb&quot;</span><span class="p">:</span>
+                <span class="kn">import</span> <span class="nn">pdb</span>
+
+                <span class="n">pdb</span><span class="o">.</span><span class="n">post_mortem</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">config</span><span class="o">.</span><span class="n">compute_test_value</span><span class="si">}</span><span class="s2"> is invalid for option config.compute_test_value&quot;</span>
+                <span class="p">)</span>
+
+    <span class="c1"># All inputs have test-values; perform the `Op`&#39;s computation</span>
+
+    <span class="c1"># The original values should not be destroyed, so we copy the values of the</span>
+    <span class="c1"># inputs in `destroy_map`</span>
+    <span class="n">destroyed_inputs_idx</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">destroy_map</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i_pos_list</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">destroy_map</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">destroyed_inputs_idx</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i_pos_list</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">inp_idx</span> <span class="ow">in</span> <span class="n">destroyed_inputs_idx</span><span class="p">:</span>
+        <span class="n">inp</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="n">inp_idx</span><span class="p">]</span>
+        <span class="n">storage_map</span><span class="p">[</span><span class="n">inp</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">storage_map</span><span class="p">[</span><span class="n">inp</span><span class="p">][</span><span class="mi">0</span><span class="p">])]</span>
+
+    <span class="c1"># Prepare `storage_map` and `compute_map` for the outputs</span>
+    <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">:</span>
+        <span class="n">storage_map</span><span class="p">[</span><span class="n">o</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span>
+        <span class="n">compute_map</span><span class="p">[</span><span class="n">o</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="kc">False</span><span class="p">]</span>
+
+    <span class="c1"># Create a thunk that performs the computation</span>
+    <span class="n">thunk</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">make_thunk</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">storage_map</span><span class="p">,</span> <span class="n">compute_map</span><span class="p">,</span> <span class="n">no_recycling</span><span class="o">=</span><span class="p">[])</span>
+    <span class="n">thunk</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">storage_map</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">inputs</span><span class="p">]</span>
+    <span class="n">thunk</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">storage_map</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">]</span>
+
+    <span class="n">thunk</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">:</span>
+        <span class="c1"># Check that the output has been computed</span>
+        <span class="k">assert</span> <span class="n">compute_map</span><span class="p">[</span><span class="n">output</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">storage_map</span><span class="p">[</span><span class="n">output</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="c1"># Add &#39;test_value&#39; to output tag, so that downstream `Op`s can use</span>
+        <span class="c1"># these numerical values as test values</span>
+        <span class="n">output</span><span class="o">.</span><span class="n">tag</span><span class="o">.</span><span class="n">test_value</span> <span class="o">=</span> <span class="n">storage_map</span><span class="p">[</span><span class="n">output</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Op">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op">[docs]</a>
+<span class="k">class</span> <span class="nc">Op</span><span class="p">(</span><span class="n">MetaObject</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A class that models and constructs operations in a graph.</span>
+
+<span class="sd">    A `Op` instance has several responsibilities:</span>
+
+<span class="sd">    * construct `Apply` nodes via :meth:`Op.make_node` method,</span>
+<span class="sd">    * perform the numeric calculation of the modeled operation via the</span>
+<span class="sd">      :meth:`Op.perform` method,</span>
+<span class="sd">    * and (optionally) build the gradient-calculating sub-graphs via the</span>
+<span class="sd">      :meth:`Op.grad` method.</span>
+
+<span class="sd">    To see how `Op`, `Type`, `Variable`, and `Apply` fit together see the</span>
+<span class="sd">    page on :doc:`graph`.</span>
+
+<span class="sd">    For more details regarding how these methods should behave: see the `Op</span>
+<span class="sd">    Contract` in the sphinx docs (advanced tutorial on `Op` making).</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">default_output</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An ``int`` that specifies which output :meth:`Op.__call__` should return.  If</span>
+<span class="sd">    ``None``, then all outputs are returned.</span>
+
+<span class="sd">    A subclass should not change this class variable, but instead override it</span>
+<span class="sd">    with a subclass variable or an instance variable.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">view_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A ``dict`` that maps output indices to the input indices of which they are</span>
+<span class="sd">    a view.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        view_map = {0: [1]} # first output is a view of second input</span>
+<span class="sd">        view_map = {1: [0]} # second output is a view of first input</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">destroy_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A ``dict`` that maps output indices to the input indices upon which they</span>
+<span class="sd">    operate in-place.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        destroy_map = {0: [1]} # first output operates in-place on second input</span>
+<span class="sd">        destroy_map = {1: [0]} # second output operates in-place on first input</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">itypes</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="s2">&quot;Type&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">otypes</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="s2">&quot;Type&quot;</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">_output_type_depends_on_input_value</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Whether the static output type depends on the inferred value of one of the inputs.</span>
+<span class="sd">    (e.g, via constant folding or static shape inference).</span>
+
+<span class="sd">    This information is needed when rebuilding a graph with new inputs,</span>
+<span class="sd">    as nodes with these Ops must be rebuilt even if the input types haven&#39;t changed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Op.make_node">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op.make_node">[docs]</a>
+    <span class="k">def</span> <span class="nf">make_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">:</span> <span class="n">Variable</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Apply</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Construct an `Apply` node that represent the application of this operation to the given inputs.</span>
+
+<span class="sd">        This must be implemented by sub-classes.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        node: Apply</span>
+<span class="sd">            The constructed `Apply` node.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">itypes</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+                <span class="s2">&quot;You can either define itypes and otypes, or implement make_node&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">otypes</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+                <span class="s2">&quot;You can either define itypes and otypes, or implement make_node&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">itypes</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;We expected </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">itypes</span><span class="p">)</span><span class="si">}</span><span class="s2"> inputs but got </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span>
+            <span class="n">expected_type</span><span class="o">.</span><span class="n">is_super</span><span class="p">(</span><span class="n">var</span><span class="o">.</span><span class="n">type</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">var</span><span class="p">,</span> <span class="n">expected_type</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">itypes</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Invalid input types for Op </span><span class="si">{</span><span class="bp">self</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="s2">&quot;</span>
+                <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Input </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span><span class="si">}</span><span class="s2">: Expected </span><span class="si">{</span><span class="n">inp</span><span class="si">}</span><span class="s2">, got </span><span class="si">{</span><span class="n">out</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">inp</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span>
+                        <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">itypes</span><span class="p">,</span> <span class="p">(</span><span class="n">inp</span><span class="o">.</span><span class="n">type</span> <span class="k">for</span> <span class="n">inp</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">),</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+                        <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="k">if</span> <span class="n">inp</span> <span class="o">!=</span> <span class="n">out</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">Apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="p">[</span><span class="n">o</span><span class="p">()</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">otypes</span><span class="p">])</span></div>
+
+
+    <span class="k">def</span> <span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_list</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Variable</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Variable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Construct an `Apply` node using :meth:`Op.make_node` and return its outputs.</span>
+
+<span class="sd">        This method is just a wrapper around :meth:`Op.make_node`.</span>
+
+<span class="sd">        It is called by code such as:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">           x = pytensor.tensor.matrix()</span>
+<span class="sd">           y = pytensor.tensor.exp(x)</span>
+
+
+<span class="sd">        `pytensor.tensor.exp` is an `Op` instance, so ``pytensor.tensor.exp(x)`` calls</span>
+<span class="sd">        :meth:`pytensor.tensor.exp.__call__` (i.e. this method) and returns its single output</span>
+<span class="sd">        `Variable`, ``y``.  The `Apply` node constructed by :meth:`self.make_node`</span>
+<span class="sd">        behind the scenes is available via ``y.owner``.</span>
+
+<span class="sd">        `Op` authors are able to determine which output is returned by this method</span>
+<span class="sd">        via the :attr:`Op.default_output` property.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        inputs : tuple of Variable</span>
+<span class="sd">            The `Op`&#39;s inputs.</span>
+<span class="sd">        kwargs</span>
+<span class="sd">            Additional keyword arguments to be forwarded to</span>
+<span class="sd">            :meth:`Op.make_node` *except* for optional argument ``return_list`` (which</span>
+<span class="sd">            defaults to ``False``). If ``return_list`` is ``True``, then the returned</span>
+<span class="sd">            value is always a ``list``. Otherwise it is either a single `Variable`</span>
+<span class="sd">            when the output of :meth:`Op.make_node` contains a single element, or this</span>
+<span class="sd">            output (unchanged) when it contains multiple elements.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        outputs : list of Variable or Variable</span>
+<span class="sd">            Either a list of output `Variable`\s, or a single `Variable`.</span>
+<span class="sd">            This is determined by the number of outputs produced by the</span>
+<span class="sd">            `Op`, the value of the keyword ``return_list``, and the value of</span>
+<span class="sd">            the :attr:`Op.default_output` property.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">make_node</span><span class="p">(</span><span class="o">*</span><span class="n">inputs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">default_output</span><span class="p">]</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">):</span>
+                    <span class="n">n</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">&quot;</span>
+
+        <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">compute_test_value</span> <span class="o">!=</span> <span class="s2">&quot;off&quot;</span><span class="p">:</span>
+            <span class="n">compute_test_value</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">rval</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">default_output</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">return_list</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">rval</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">rval</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">return_list</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">outputs</span>
+
+    <span class="k">def</span> <span class="fm">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span> <span class="o">==</span> <span class="n">other</span><span class="p">)</span>
+
+    <span class="c1"># Convenience so that subclass implementers don&#39;t have to import utils</span>
+    <span class="c1"># just to self.add_tag_trace</span>
+    <span class="n">add_tag_trace</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">add_tag_trace</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Op.grad">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op.grad">[docs]</a>
+    <span class="k">def</span> <span class="nf">grad</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Variable</span><span class="p">],</span> <span class="n">output_grads</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Variable</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Variable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Construct a graph for the gradient with respect to each input variable.</span>
+
+<span class="sd">        Each returned `Variable` represents the gradient with respect to that</span>
+<span class="sd">        input computed based on the symbolic gradients with respect to each</span>
+<span class="sd">        output. If the output is not differentiable with respect to an input,</span>
+<span class="sd">        then this method should return an instance of type `NullType` for that</span>
+<span class="sd">        input.</span>
+
+<span class="sd">        Using the reverse-mode AD characterization given in [1]_, for a</span>
+<span class="sd">        :math:`C = f(A, B)` representing the function implemented by the `Op`</span>
+<span class="sd">        and its two arguments :math:`A` and :math:`B`, given by the</span>
+<span class="sd">        `Variable`\s in `inputs`, the values returned by `Op.grad` represent</span>
+<span class="sd">        the quantities :math:`\bar{A} \equiv \frac{\partial S_O}{A}` and</span>
+<span class="sd">        :math:`\bar{B}`, for some scalar output term :math:`S_O` of :math:`C`</span>
+<span class="sd">        in</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            \operatorname{Tr}\left(\bar{C}^\top dC\right) =</span>
+<span class="sd">                \operatorname{Tr}\left(\bar{A}^\top dA\right) +</span>
+<span class="sd">                \operatorname{Tr}\left(\bar{B}^\top dB\right)</span>
+
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        inputs</span>
+<span class="sd">            The input variables.</span>
+<span class="sd">        output_grads</span>
+<span class="sd">            The gradients of the output variables.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        grads</span>
+<span class="sd">            The gradients with respect to each `Variable` in `inputs`.</span>
+
+<span class="sd">        References</span>
+<span class="sd">        ----------</span>
+<span class="sd">        .. [1] Giles, Mike. 2008. “An Extended Collection of Matrix Derivative Results for Forward and Reverse Mode Automatic Differentiation.”</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Op.L_op">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op.L_op">[docs]</a>
+    <span class="k">def</span> <span class="nf">L_op</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Variable</span><span class="p">],</span>
+        <span class="n">outputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Variable</span><span class="p">],</span>
+        <span class="n">output_grads</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Variable</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Variable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Construct a graph for the L-operator.</span>
+
+<span class="sd">        The L-operator computes a row vector times the Jacobian.</span>
+
+<span class="sd">        This method dispatches to :meth:`Op.grad` by default.  In one sense,</span>
+<span class="sd">        this method provides the original outputs when they&#39;re needed to</span>
+<span class="sd">        compute the return value, whereas `Op.grad` doesn&#39;t.</span>
+
+<span class="sd">        See `Op.grad` for a mathematical explanation of the inputs and outputs</span>
+<span class="sd">        of this method.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        inputs</span>
+<span class="sd">            The inputs of the `Apply` node using this `Op`.</span>
+<span class="sd">        outputs</span>
+<span class="sd">            The outputs of the `Apply` node using this `Op`</span>
+<span class="sd">        output_grads</span>
+<span class="sd">            The gradients with respect to each `Variable` in `inputs`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grad</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">output_grads</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Op.R_op">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op.R_op">[docs]</a>
+    <span class="k">def</span> <span class="nf">R_op</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Variable</span><span class="p">],</span> <span class="n">eval_points</span><span class="p">:</span> <span class="n">Variable</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Variable</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Variable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Construct a graph for the R-operator.</span>
+
+<span class="sd">        This method is primarily used by `Rop`.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        inputs</span>
+<span class="sd">            The `Op` inputs.</span>
+<span class="sd">        eval_points</span>
+<span class="sd">            A `Variable` or list of `Variable`\s with the same length as inputs.</span>
+<span class="sd">            Each element of `eval_points` specifies the value of the corresponding</span>
+<span class="sd">            input at the point where the R-operator is to be evaluated.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ``rval[i]`` should be ``Rop(f=f_i(inputs), wrt=inputs, eval_points=eval_points)``.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Op.perform">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op.perform">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">perform</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">node</span><span class="p">:</span> <span class="n">Apply</span><span class="p">,</span>
+        <span class="n">inputs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+        <span class="n">output_storage</span><span class="p">:</span> <span class="n">OutputStorageType</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Calculate the function on the inputs and put the variables in the output storage.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node</span>
+<span class="sd">            The symbolic `Apply` node that represents this computation.</span>
+<span class="sd">        inputs</span>
+<span class="sd">            Immutable sequence of non-symbolic/numeric inputs.  These</span>
+<span class="sd">            are the values of each `Variable` in :attr:`node.inputs`.</span>
+<span class="sd">        output_storage</span>
+<span class="sd">            List of mutable single-element lists (do not change the length of</span>
+<span class="sd">            these lists).  Each sub-list corresponds to value of each</span>
+<span class="sd">            `Variable` in :attr:`node.outputs`.  The primary purpose of this method</span>
+<span class="sd">            is to set the values of these sub-lists.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        The `output_storage` list might contain data. If an element of</span>
+<span class="sd">        output_storage is not ``None``, it has to be of the right type, for</span>
+<span class="sd">        instance, for a `TensorVariable`, it has to be a NumPy ``ndarray``</span>
+<span class="sd">        with the right number of dimensions and the correct dtype.</span>
+<span class="sd">        Its shape and stride pattern can be arbitrary. It is not</span>
+<span class="sd">        guaranteed that such pre-set values were produced by a previous call to</span>
+<span class="sd">        this :meth:`Op.perform`; they could&#39;ve been allocated by another</span>
+<span class="sd">        `Op`&#39;s `perform` method.</span>
+<span class="sd">        An `Op` is free to reuse `output_storage` as it sees fit, or to</span>
+<span class="sd">        discard it and allocate new memory.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="Op.do_constant_folding">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op.do_constant_folding">[docs]</a>
+    <span class="k">def</span> <span class="nf">do_constant_folding</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fgraph</span><span class="p">:</span> <span class="s2">&quot;FunctionGraph&quot;</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Apply</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Determine whether or not constant folding should be performed for the given node.</span>
+
+<span class="sd">        This allows each `Op` to determine if it wants to be constant</span>
+<span class="sd">        folded when all its inputs are constant. This allows it to choose where</span>
+<span class="sd">        it puts its memory/speed trade-off. Also, it could make things faster</span>
+<span class="sd">        as constants can&#39;t be used for in-place operations (see</span>
+<span class="sd">        ``*IncSubtensor``).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node : Apply</span>
+<span class="sd">            The node for which the constant folding determination is made.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        res : bool</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="Op.prepare_node">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op.prepare_node">[docs]</a>
+    <span class="k">def</span> <span class="nf">prepare_node</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">node</span><span class="p">:</span> <span class="n">Apply</span><span class="p">,</span>
+        <span class="n">storage_map</span><span class="p">:</span> <span class="n">StorageMapType</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">compute_map</span><span class="p">:</span> <span class="n">ComputeMapType</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">impl</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Make any special modifications that the `Op` needs before doing :meth:`Op.make_thunk`.</span>
+
+<span class="sd">        This can modify the node inplace and should return nothing.</span>
+
+<span class="sd">        It can be called multiple time with different `impl` values.</span>
+
+<span class="sd">        .. warning::</span>
+
+<span class="sd">            It is the `Op`&#39;s responsibility to not re-prepare the node when it</span>
+<span class="sd">            isn&#39;t good to do so.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="Op.make_py_thunk">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op.make_py_thunk">[docs]</a>
+    <span class="k">def</span> <span class="nf">make_py_thunk</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">node</span><span class="p">:</span> <span class="n">Apply</span><span class="p">,</span>
+        <span class="n">storage_map</span><span class="p">:</span> <span class="n">StorageMapType</span><span class="p">,</span>
+        <span class="n">compute_map</span><span class="p">:</span> <span class="n">ComputeMapType</span><span class="p">,</span>
+        <span class="n">no_recycling</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Variable</span><span class="p">],</span>
+        <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ThunkType</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Make a Python thunk.</span>
+
+<span class="sd">        Like :meth:`Op.make_thunk` but only makes Python thunks.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">node_input_storage</span> <span class="o">=</span> <span class="p">[</span><span class="n">storage_map</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">inputs</span><span class="p">]</span>
+        <span class="n">node_output_storage</span> <span class="o">=</span> <span class="p">[</span><span class="n">storage_map</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">]</span>
+        <span class="n">node_compute_map</span> <span class="o">=</span> <span class="p">[</span><span class="n">compute_map</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">outputs</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">debug</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;debug_perform&quot;</span><span class="p">):</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">debug_perform</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">perform</span>
+
+        <span class="nd">@is_thunk_type</span>
+        <span class="k">def</span> <span class="nf">rval</span><span class="p">(</span>
+            <span class="n">p</span><span class="o">=</span><span class="n">p</span><span class="p">,</span>
+            <span class="n">i</span><span class="o">=</span><span class="n">node_input_storage</span><span class="p">,</span>
+            <span class="n">o</span><span class="o">=</span><span class="n">node_output_storage</span><span class="p">,</span>
+            <span class="n">n</span><span class="o">=</span><span class="n">node</span><span class="p">,</span>
+            <span class="n">cm</span><span class="o">=</span><span class="n">node_compute_map</span><span class="p">,</span>
+        <span class="p">):</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="n">p</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">i</span><span class="p">],</span> <span class="n">o</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">cm</span><span class="p">:</span>
+                <span class="n">entry</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span> <span class="n">r</span>
+
+        <span class="n">rval</span><span class="o">.</span><span class="n">inputs</span> <span class="o">=</span> <span class="n">node_input_storage</span>
+        <span class="n">rval</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="n">node_output_storage</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">rval</span><span class="p">,</span> <span class="s2">&quot;perform&quot;</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+        <span class="n">rval</span><span class="o">.</span><span class="n">lazy</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">rval</span></div>
+
+
+<div class="viewcode-block" id="Op.make_thunk">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op.make_thunk">[docs]</a>
+    <span class="k">def</span> <span class="nf">make_thunk</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">node</span><span class="p">:</span> <span class="n">Apply</span><span class="p">,</span>
+        <span class="n">storage_map</span><span class="p">:</span> <span class="n">StorageMapType</span><span class="p">,</span>
+        <span class="n">compute_map</span><span class="p">:</span> <span class="n">ComputeMapType</span><span class="p">,</span>
+        <span class="n">no_recycling</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Variable</span><span class="p">],</span>
+        <span class="n">impl</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ThunkType</span><span class="p">:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Create a thunk.</span>
+
+<span class="sd">        This function must return a thunk, that is a zero-arguments</span>
+<span class="sd">        function that encapsulates the computation to be performed</span>
+<span class="sd">        by this op on the arguments of the node.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        node</span>
+<span class="sd">            Something previously returned by :meth:`Op.make_node`.</span>
+<span class="sd">        storage_map</span>
+<span class="sd">            A ``dict`` mapping `Variable`\s to single-element lists where a</span>
+<span class="sd">            computed value for each `Variable` may be found.</span>
+<span class="sd">        compute_map</span>
+<span class="sd">            A ``dict`` mapping `Variable`\s to single-element lists where a</span>
+<span class="sd">            boolean value can be found. The boolean indicates whether the</span>
+<span class="sd">            `Variable`&#39;s `storage_map` container contains a valid value</span>
+<span class="sd">            (i.e. ``True``) or whether it has not been computed yet</span>
+<span class="sd">            (i.e. ``False``).</span>
+<span class="sd">        no_recycling</span>
+<span class="sd">            List of `Variable`\s for which it is forbidden to reuse memory</span>
+<span class="sd">            allocated by a previous call.</span>
+<span class="sd">        impl : str</span>
+<span class="sd">            Description for the type of node created (e.g. ``&quot;c&quot;``, ``&quot;py&quot;``,</span>
+<span class="sd">            etc.)</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        If the thunk consults the `storage_map` on every call, it is safe</span>
+<span class="sd">        for it to ignore the `no_recycling` argument, because elements of the</span>
+<span class="sd">        `no_recycling` list will have a value of ``None`` in the `storage_map`.</span>
+<span class="sd">        If the thunk can potentially cache return values (like `CLinker` does),</span>
+<span class="sd">        then it must not do so for variables in the `no_recycling` list.</span>
+
+<span class="sd">        :meth:`Op.prepare_node` is always called. If it tries ``&#39;c&#39;`` and it</span>
+<span class="sd">        fails, then it tries ``&#39;py&#39;``, and :meth:`Op.prepare_node` will be</span>
+<span class="sd">        called twice.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prepare_node</span><span class="p">(</span>
+            <span class="n">node</span><span class="p">,</span> <span class="n">storage_map</span><span class="o">=</span><span class="n">storage_map</span><span class="p">,</span> <span class="n">compute_map</span><span class="o">=</span><span class="n">compute_map</span><span class="p">,</span> <span class="n">impl</span><span class="o">=</span><span class="s2">&quot;py&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">make_py_thunk</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">storage_map</span><span class="p">,</span> <span class="n">compute_map</span><span class="p">,</span> <span class="n">no_recycling</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Op.inplace_on_inputs">
+<a class="viewcode-back" href="../../../api/stratage.html#stratage.stratage.Op.inplace_on_inputs">[docs]</a>
+    <span class="k">def</span> <span class="nf">inplace_on_inputs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">allowed_inplace_inputs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="s2">&quot;Op&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Try to return a version of self that tries to inplace in as many as `allowed_inplace_inputs`.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO: Document this in the Create your own Op docs</span>
+        <span class="c1"># By default, do nothing</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="s2">&quot;__name__&quot;</span><span class="p">,</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__str__</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">props</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;__props__&quot;</span><span class="p">,</span> <span class="p">())</span>
+        <span class="n">props</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prop</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">prop</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;?&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">prop</span> <span class="ow">in</span> <span class="n">props</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">props</span><span class="si">}</span><span class="s2">)&quot;</span></div>
+
+
+
+<span class="k">class</span> <span class="nc">_NoPythonOp</span><span class="p">(</span><span class="n">Op</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A class used to indicate that an `Op` does not provide a Python implementation.</span>
+
+<span class="sd">    XXX: Do not use this class; it&#39;s only for tracking bad implementations internally.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">perform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">output_storage</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;No Python implementation is provided by this Op.&quot;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">HasInnerGraph</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;A mixin for an `Op` that contain an inner graph.&quot;&quot;&quot;</span>
+
+    <span class="n">fgraph</span><span class="p">:</span> <span class="s2">&quot;FunctionGraph&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A `FunctionGraph` of the inner function.&quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">fn</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Function&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The compiled inner-graph function.&quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">inner_inputs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Variable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The inner function&#39;s inputs.&quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">inner_outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Variable</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The inner function&#39;s outputs.&quot;&quot;&quot;</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">clone</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Op</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Clone the `Op` and its inner-graph.&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">get_test_value</span><span class="p">(</span><span class="n">v</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the test value for `v`.</span>
+
+<span class="sd">    If input `v` is not already a variable, it is turned into one by calling</span>
+<span class="sd">    ``as_tensor_variable(v)``.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ``AttributeError`` if no test value is set.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Variable</span><span class="p">):</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">pytensor</span><span class="o">.</span><span class="n">tensor</span><span class="o">.</span><span class="n">as_tensor_variable</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">v</span><span class="o">.</span><span class="n">get_test_value</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">missing_test_message</span><span class="p">(</span><span class="n">msg</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Display a message saying that some test_value is missing.</span>
+
+<span class="sd">    This uses the appropriate form based on ``config.compute_test_value``:</span>
+
+<span class="sd">        off:</span>
+<span class="sd">            The interactive debugger is off, so we do nothing.</span>
+
+<span class="sd">        ignore:</span>
+<span class="sd">            The interactive debugger is set to ignore missing inputs, so do</span>
+<span class="sd">            nothing.</span>
+
+<span class="sd">        warn:</span>
+<span class="sd">            Display `msg` as a warning.</span>
+
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    AttributeError</span>
+<span class="sd">        With msg as the exception text.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">action</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">compute_test_value</span>
+    <span class="k">if</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;raise&quot;</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">TestValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">&quot;warn&quot;</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">action</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="s2">&quot;off&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_test_values</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">Variable</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Get test values for multiple `Variable`\s.</span>
+
+<span class="sd">    Intended use:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        for val_1, ..., val_n in get_debug_values(var_1, ..., var_n):</span>
+<span class="sd">            if some condition on val_1, ..., val_n is not met:</span>
+<span class="sd">                missing_test_message(&quot;condition was not met&quot;)</span>
+
+
+<span class="sd">    Given a list of variables, `get_debug_values` does one of three things:</span>
+
+<span class="sd">    1. If the interactive debugger is off, returns an empty list</span>
+<span class="sd">    2. If the interactive debugger is on, and all variables have</span>
+<span class="sd">       debug values, returns a list containing a single element.</span>
+<span class="sd">       This single element is either:</span>
+
+<span class="sd">           a) if there is only one variable, the element is its</span>
+<span class="sd">               value</span>
+<span class="sd">           b) otherwise, a tuple containing debug values of all</span>
+<span class="sd">               the variables.</span>
+
+<span class="sd">    3. If the interactive debugger is on, and some variable does</span>
+<span class="sd">       not have a debug value, issue a `missing_test_message` about</span>
+<span class="sd">       the variable, and, if still in control of execution, return</span>
+<span class="sd">       an empty list.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">compute_test_value</span> <span class="o">==</span> <span class="s2">&quot;off&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>
+
+    <span class="n">rval</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">arg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">rval</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">get_test_value</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">TestValueError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">arg</span><span class="o">.</span><span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">missing_test_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Argument </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> (&#39;</span><span class="si">{</span><span class="n">arg</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;) has no test value&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">missing_test_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Argument </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> has no test value&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rval</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">rval</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">rval</span><span class="p">)]</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../index.html">stratage</a></h1>
+
+
+
+
+
+
+
+
+
+<search id="searchbox" style="display: none" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../toy-example.html">Toy Example</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">Module Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, Adrian Tasistro-Hart.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.1.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
