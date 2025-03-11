@@ -2,42 +2,58 @@ import numpy as np
 from functools import partial
 from tqdm.auto import tqdm
 import warnings
+from joblib import Parallel, delayed
 
 import matplotlib.pyplot as plt
 
 
 class Geochron:
-    """Class for handling geochronologic constraints in stratigraphic sections."""
+    """Class for handling geochronologic constraints in stratigraphic sections.
 
-    def __init__(self, h, rv, dt, prob_threshold=1e-8, neighbors='all'):
-        """
-        Initializes the Geochron class.
+    Parameters
+    ----------
+    h : array-like
+        List of stratigraphic heights at which temporal constraints are measured. The coordinate increases up section.
+    rv : array-like
+        List of random variables representing the temporal constraints at each height. The members of this list must be objects similar to stats.dist objects with the following methods: pdf, ppf (inverse of cdf).
+    nt : int, optional
+        Number of points for computing numerical pdfs from constraints. Defaults to 500.
+    ndt : int, optional
+        Number of points for computing numerical time increment pdfs. Defaults to 100. This value should be smaller than nt to avoid noisiness in the time increment pdfs.
+    prob_threshold: float, optional
+        Probability threshold for determining the temporal range over which to grid. Defaults to 1e-4.
+    neighbors: str or int, optional
+        Number of neighbors for pairing constraints. Defaults to 'all'. Valid options are 'all' or integers up to n_constraints-1. All pairs are considered in the 'all' method. For integer values n, only n neighboring pairs are considered.
 
-        Args:
-            h (array-like): List of stratigraphic heights at which temporal constraints
-            are measured. The coordinate increases up section.
-            rv (array-like): List of random variables representing the temporal constraints at each height. The members of this list must be objects similar to stats.dist objects with the following methods: pdf, ppf (inverse of cdf).
-            dt (float): Time spacing for computing the time increment pdfs. Units are same as rvs
-            prob_threshold (float, optional): Probability threshold for determining the temporal range over which to grid. Defaults to 1e-8.
-            neighbors (str or int, optional): Number of neighbors for pairing constraints. Defaults to 'all'. Valid options are 'all' or integers up to n_constraints-1. All pairs are considered in the 'all' method. For integer values n, only n neighboring pairs are considered.
+    Attributes
+    ----------
+    h : list
+        Sorted list of stratigraphic heights.
+    rv : list
+        Sorted list of random variables representing the temporal constraints.
+    n_constraints : int
+        Number of constraints.
+    n_pairs : int
+        Number of pairs of constraints.
+    nt : int
+        Number of points for computing numerical pdfs from constraints.
+    ndt : int
+        Number of points for computing numerical time increment pdfs.
+    lower_idx : list
+        List of indices into h and rv for the lower constraint in each pair.
+    upper_idx list
+        List of indices into h and rv for the upper constraint in each pair.
+    """
 
-        Attributes:
-            h (list): Sorted list of stratigraphic heights.
-            rv (list): Sorted list of random variables representing the temporal constraints.
-            n_constraints (int): Number of constraints.
-            n_pairs (int): Number of pairs of constraints.
-            _t_max (float): Maximum time to resolve
-            _t_min (float): Minimum time to resolve
-            _dt (float): Time spacing for computing the time increment pdfs.
-            _t (array-like): Time grid for computing the time increment pdfs.
-            lower_idx (list): List of indices into h and rv for the lower constraint in each pair.
-            upper_idx (list): List of indices into h and rv for the upper constraint in each pair.
+    def __init__(self, h, rv, nt=500, ndt=100, prob_threshold=1e-4, neighbors='all'):
+        """Initialize the Geochron object.
         """
 
         # read in heights h, and random variables rv corresponding to the geochronologic constraints
         self.h = h
         self.rv = rv
-        self.dt = dt
+        self.nt = nt
+        self.ndt = ndt
 
         self.n_constraints = len(self.h)
 
@@ -49,18 +65,7 @@ class Geochron:
         # establish unique pairs of constraints, distinguising in a consistent way the relative stratigraphic height of each
         self._pair_constraints(neighbors=neighbors)
 
-        # determine the temporal range over which to grid based on probability threshold
-        t_mins = [x.ppf(prob_threshold) for x in self.rv]
-        t_maxs = [x.ppf(1-prob_threshold) for x in self.rv]
-        self._t_max = np.max(t_maxs)
-        self._t_min = np.min(t_mins)
-        self._dt = dt  # temporal resolution
-
-        # need to double sampling on grid to achieve desired temporal resolution (some form of Nyquist), hence the dt/2
-        self._t = np.arange(self._t_min, self._t_max, self._dt/2)
-
-        # verify that this grid resolves the probability distributions that were given
-        ## TO DO
+        # TODO verify that this grid resolves the probability distributions that were given
 
         # save probability threshold for filtering of time grid based on each constraint's pdf
         self.prob_threshold = prob_threshold
@@ -74,15 +79,18 @@ class Geochron:
         Determines unique pairs of constraints, ordered such that the first response is lower stratigraphically and the second is higher. outputs indices for these pairs as upper_idx and lower_idx (which index in to h, rv)
         Again, ensure that heights are increasing up section (i.e. with time)
 
-        Args:
-            neighbors (str or int, optional): Number of neighbors for pairing constraints. Defaults to 'all'. Valid options are 'all' or integers up to n_constraints-1. All pairs are considered in the 'all' method. For integer values n, only n neighboring pairs are considered.
+        Parameters
+        ----------
+        neighbors : str or int, optional
+            Number of neighbors for pairing constraints. Defaults to 'all'. Valid options are 'all' or integers up to n_constraints-1. All pairs are considered in the 'all' method. For integer values n, only n neighboring pairs are considered.
         """
         upper_idx = []
         lower_idx = []
         if isinstance(neighbors, str):
             assert neighbors == 'all', 'Invalid string for pairing constraints; must be "all" or an integer.'
         else:
-            assert isinstance(neighbors, int), 'Invalid value for pairing constraints; must be "all" or an integer.'
+            assert isinstance(
+                neighbors, int), 'Invalid value for pairing constraints; must be "all" or an integer.'
             assert neighbors < self.n_constraints, f'Neighbors must be less than n_constraints = {self.n_constraints}.'
         if neighbors == 'all':
             # loop over all pairs of constraints
@@ -105,7 +113,8 @@ class Geochron:
 
         # always include pairing of  lowermost and uppermost constraints
         # check if lowermost and uppermost constraints are already paired
-        matches = [i for i in range(len(lower_idx)) if lower_idx[i] == 0 and upper_idx[i] == self.n_constraints - 1]
+        matches = [i for i in range(len(lower_idx)) if lower_idx[i]
+                   == 0 and upper_idx[i] == self.n_constraints - 1]
         if len(matches) == 0:
             lower_idx.append(0)
             upper_idx.append(self.n_constraints-1)
@@ -119,20 +128,26 @@ class Geochron:
         Calculate the weights for units and contacts based on their bounding by
         geochron constraints.
 
-        Args:
-            units (numpy.ndarray): Bottom and top heights of units in section. 
-                2d array (nx2) of bottom and top heights for each of n units
+        Parameters
+        ----------
+        units : numpy.ndarray
+            Bottom and top heights of units in section. 2d array (nx2) of bottom and top heights for each of n units
 
-        Returns:
-            Tuple[List[List[float]], List[List[float]]]:
-                - alpha: 2D list (NxL) of weights for each of N units and L pairs of geochron constraints.
-                - beta: 2D list (MxL) of weights for each of M contacts and L pairs of geochron constraints.
+        Returns
+        -------
+        alpha : numpy.ndarray
+            2D array (NxL) of weights for each of N units and L pairs of geochron constraints.
+        beta : numpy.ndarray
+            2D array (MxL) of weights for each of M contacts and L pairs of geochron constraints.
 
-        Raises:
-            AssertionError: If any rows in alpha or beta are entirely zero, indicating unconstrained model parameters.
+        Raises
+        ------
+        AssertionError
+            If any rows in alpha or beta are entirely zero, indicating unconstrained model parameters.
 
-        Notes:
-            - Run after :py:func:`stratagemc.trim_units()`.
+        Notes
+        -----
+        Run after :py:func:`stratagemc.trim_units()`.
         """
         unit_thicks = np.diff(units, axis=1).flatten()
         contacts = units[0:-1, 1]
@@ -182,17 +197,13 @@ class Geochron:
         rv_t = []   # list of time grids for each constraint
         rv_pdf = []  # list of pdfs for each constraint
         for ii in range(self.n_constraints):
-            # indices in self.t1 that contain the probability mass for the given constraint
-            cur_up_bnd = self.rv[ii].ppf(1-self.prob_threshold)
-            cur_low_bnd = self.rv[ii].ppf(self.prob_threshold)
-            cur_idx = (self._t > cur_low_bnd) & (self._t < cur_up_bnd)
-            rv_t.append(self._t[cur_idx])
-            rv_pdf.append(self.rv[ii].pdf(self._t[cur_idx]))
+            cur_t = self.rv[ii].ppf(np.linspace(
+                self.prob_threshold, 1-self.prob_threshold, self.nt))
+            cur_pdf = self.rv[ii].pdf(cur_t)
+            rv_t.append(cur_t)
+            rv_pdf.append(cur_pdf)
 
-        # warn user if any constraints have a time grid with more than 1000 points
-        if np.any([len(x) > 1000 for x in rv_t]):
-            warnings.warn('Some constraints have more than 1000 points in their time grid. This may slow down the computation of time increment pdfs.')
-
+        # compute pairwise increment pdfs
         pdts = []
         dts = []
         for ii in tqdm(range(self.n_pairs),
@@ -209,21 +220,27 @@ class Geochron:
         # assign maximum likelihood for each pair of constraints
         self.dts_max = [self.dts[ii][np.argmax(self.pdts[ii])]
                         for ii in range(self.n_pairs)]
-        # shift the time increment pdfs to be centered around the maximum likelihood
-        # self.y
 
     def _pairwise_increment_pdf(self, t1, p1, t2, p2):
         """For a pair of constraints, numerically evaluate the time increment pdf.
 
-        Args:
-            t1 (arraylike): time grid for the lower constraint
-            p1 (arraylike): probability density function for the lower constraint
-            t2 (arraylike): time grid for the upper constraint
-            p2 (arraylike): probability density function for the upper constraint
+        Parameters
+        ----------
+        t1 : arraylike
+            Time grid for the lower constraint
+        p1 : arraylike
+            Probability density function for the lower constraint
+        t2 : arraylike
+            Time grid for the upper constraint
+        p2 : arraylike
+            Probability density function for the upper constraint
 
-        Returns:
-            DT (arraylike): time increment pdf for the pair of constraints
-            y (arraylike): time increments over which DT is evaluated
+        Returns
+        -------
+        pdf : numpy.ndarray 
+            Time increment pdf for the pair of constraints (Gamma in manuscript)
+        dt : numpy.ndarray
+            Time increments over which pdf is evaluated
         """
         # bounds on lower
         l1, u1 = np.min(t1), np.max(t1)
@@ -231,7 +248,7 @@ class Geochron:
         l2, u2 = np.min(t2), np.max(t2)
 
         # vector of time increments for the pair of constraints
-        dt = np.arange(np.max([l2-u1, 0]), u2-l1, self._dt)
+        dt = np.linspace(np.max([l2-u1, 0]), u2-l1, self.ndt)
 
         # make time grid for current pair of constraints
         T1, T2 = np.meshgrid(t1, t2)
@@ -243,33 +260,32 @@ class Geochron:
 
         # now just integrate over all dt's
         cdt = np.zeros(len(dt))
+        idx_spos = (T2 > T1)  # impose stratigraphic superposition
         for ii, cur_dt in enumerate(dt):
             # impose stratigraphic superposition while computing time increment pdf (first term)
-            idx = (T2 > T1) & (T2 < T1+cur_dt)
+            idx = idx_spos & (T2 < T1+cur_dt)
             cdt[ii] = np.sum(PJ[idx])
-
-        # idx = np.tile(T2 > T1, (len(dt), 1, 1)) & \
-        #     (np.tile(T2, (len(dt), 1, 1)) < (np.tile(T1, (len(dt), 1, 1)) +
-        #                                      np.reshape(dt, (-1, 1, 1))))
-        # # evaluate cumulative increment function here
-        # cdt = np.sum(PJ*idx, axis=(1, 2))
 
         # normalize correctly (CDF should sum to one, the max)
         cdt = cdt/np.max(cdt)
         # make into pdf
-        pdt = np.diff(cdt)/self._dt
-    #     cur_y = cur_y[0:-1]+dt/2 # centered difference
-        dt = dt[0:-1]  # left difference
+        pdt = np.gradient(cdt, dt)
 
         return pdt, dt
 
     def straddling(self, height):
         """
         Returns the indices of pairs of constraints that straddle a given height.
-        Args:
-            height (float): The height in section.
-        Returns:
-            array-like: The indices (into self.lower_idx, self.upper_idx) that straddle the given height.
+
+        Parameters
+        ----------
+        height : float
+            The height in section.
+
+        Returns
+        -------
+        idx : numpy.ndarray
+            The indices (into self.lower_idx, self.upper_idx) that straddle the given height.
         """
 
         idx = []
@@ -280,33 +296,56 @@ class Geochron:
 
         return idx
 
-    def plot_constraints(self, ax=None, tol=3, scale=1, **kwargs):
+    def plot_constraints(self, ax=None, tol=3, scale=1, plotstyle=None, fillstyle=None):
         """Plot the geochronologic constraints.
 
-        Args:
-            ax (matplotlib.axes.Axes): The axes on which to plot the constraints. If None, a new figure is created.
-            tol (int): The number of orders of magnitude below the maximum pdf value to plot.
-            scale (float): The scale factor for the pdfs.
-            **kwargs: Additional keyword arguments passed to the matplotlib fill_between function.
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axes on which to plot the constraints. If None, a new figure is created.
+        tol : int
+            The number of orders of magnitude below the maximum pdf value to plot.
+        scale : float
+            The scale factor for the pdfs.
+        plotstyle : dict, optional
+            Additional keyword arguments passed to the matplotlib plot function for visualizing constraint pdfs, defaults to None. If None, the default plot style is used.
+        fillstyle : dict, optional
+            Additional keyword arguments passed to the matplotlib fill_between function for visualizing constraint pdfs, defaults to None. If None, the default fill style is used.
 
-        Returns:
-            matplotlib.axes._axes.Axes: The axes on which the constraints are plotted.
-            list: The handles for the plotted constraints.
+        Returns
+        -------
+        ax : matplotlib.axes.Axes
+            The axes on which the constraints are plotted.
+        h : list
+            The handles for the plotted constraints. Each element of the list is a list of handles for the fill and line plots for a single constraint.
         """
         if ax is None:
             _, ax = plt.subplots()
             ax.set_xlabel('Time')
             ax.set_ylabel('Height')
 
-        # set up default kwargs
-        defKwargs = {'edgecolor': 'black',
-                     'facecolor': 'lightgrey',
-                     'linewidth': 1}
-        kwargs = defKwargs | kwargs
+        # set up default styles
+        plotstyle_def = {'color': 'black',
+                         'linewidth': 1}
+        fillstyle_def = {'edgecolor': 'black',
+                         'facecolor': 'lightgrey',
+                         'linewidth': 0}
+
+        # merge default and user-defined styles
+        if plotstyle is None:
+            plotstyle = plotstyle_def
+        else:
+            plotstyle = {**plotstyle_def, **plotstyle}
+        if fillstyle is None:
+            fillstyle = fillstyle_def
+        else:
+            fillstyle = {**fillstyle_def, **fillstyle}
 
         h = []
         for ii in range(self.n_constraints):
-            cur_pdf = self.rv[ii].pdf(self._t)
+            cur_t = np.linspace(self.rv[ii].ppf(self.prob_threshold),
+                                self.rv[ii].ppf(1-self.prob_threshold), self.nt)
+            cur_pdf = self.rv[ii].pdf(cur_t)
             # only plot the part of the pdf that matters
             idx_pdf = np.log10(cur_pdf) > (np.max(np.log10(cur_pdf)) - tol)
 
@@ -314,22 +353,31 @@ class Geochron:
             pdf_scale = scale/(np.max(cur_pdf[idx_pdf]) - np.min(cur_pdf[idx_pdf]))
             cur_pdf = self.h[ii] + pdf_scale * cur_pdf
 
-            h.append(ax.fill_between(self._t[idx_pdf],
-                                cur_pdf[idx_pdf],
-                                self.h[ii],
-                                **kwargs))
+            cur_h_fill = ax.fill_between(cur_t[idx_pdf],
+                                         cur_pdf[idx_pdf],
+                                         self.h[ii],
+                                         **fillstyle)
+            cur_h_line = ax.plot(cur_t[idx_pdf], cur_pdf[idx_pdf], **plotstyle)
+            h.append([cur_h_fill, cur_h_line])
 
         return ax, h
 
     def plot_increment_pdfs(self, ax=None, tol=3, scale=1):
         """Plot the time increment pdfs.
 
-        Args:
-            ax (matplotlib.axes.Axes): The axes on which to plot the increment pdfs. If None, a new figure is created.
-            tol (int): The number of orders of magnitude below the maximum pdf value to plot.
-            scale (float): The scale factor for the pdfs.
-        Returns:
-            matplotlib.axes.Axes: The axes on which the increment pdfs are plotted.
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes, optional
+            The axes on which to plot the increment pdfs. Defaults to None. If None, a new figure is created.
+        tol : int, optional
+            The number of orders of magnitude below the maximum pdf value to plot. Defaults to 3.
+        scale : float, optional
+            The scale factor for the pdfs. Defaults to 1.
+
+        Returns
+        -------
+        ax : matplotlib.axes.Axes
+            The axes on which the increment pdfs are plotted.
         """
         if ax is None:
             fig, ax = plt.subplots()
@@ -337,7 +385,7 @@ class Geochron:
             ax.set_ylabel('Pair Index')
 
         for ii in range(self.n_pairs):
-            cur_pair_label = f'lower: {self.h[self.lower_idx[ii]]}, upper: {self.h  [self.upper_idx[ii]]}'
+            cur_pair_label = f'lower: {self.h[self.lower_idx[ii]]}, upper: {self.h[self.upper_idx[ii]]}'
             cur_pdf = self.pdts[ii]
             min_dt = np.min([np.min(x) for x in self.dts])
             max_dt = np.max([np.max(x) for x in self.dts])
