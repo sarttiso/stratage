@@ -1,12 +1,12 @@
 # Changelog
 
-## v1.1
+## v1.1.0
 
 ### Added
 - parallelization of the `stratage.Geochron._time_increment_pdfs()` to speed up numerical computation of time increment distributions
 - improve gridding and efficiency of numerical computation of time increment distributions
 
-## v1.0
+## v1.0.0
 
 ### Features
 - `Geochron` class for creating time-increment distributions
