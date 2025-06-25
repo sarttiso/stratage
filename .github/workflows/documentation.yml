@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch tags
+        run: git fetch --tags
       - uses: actions/setup-python@v5
       - name: Install dependencies
         run: |

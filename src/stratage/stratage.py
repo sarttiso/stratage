@@ -15,8 +15,6 @@ from pytensor.graph import Apply, Op
 
 from .geochron import Geochron
 
-from stratage import __version__
-
 __author__ = "Adrian Tasistro-Hart"
 __copyright__ = "Adrian Tasistro-Hart"
 __license__ = "GPL-3.0-only"
