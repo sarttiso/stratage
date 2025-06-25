@@ -1,0 +1,29 @@
+stratage package
+================
+
+Submodules
+----------
+
+stratage.geochron module
+------------------------
+
+.. automodule:: stratage.geochron
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+stratage.stratage module
+------------------------
+
+.. automodule:: stratage.stratage
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: stratage
+   :members:
+   :undoc-members:
+   :show-inheritance:
