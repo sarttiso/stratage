@@ -13,3 +13,4 @@ joblib
 nbsphinx
 myst-nb
 sphinx-mdinclude
+furo
