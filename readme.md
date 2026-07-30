@@ -19,3 +19,9 @@ pip install stratage
 The best way to get a feel for StratAge is to read through the [Toy Example](https://adrian.tasistro-hart.com/stratage/toy-example.html), which presents the basic functionality of StratAge on a synthetic stratigraphy.
 
 Full documentation can be found [here](https://adrian.tasistro-hart.com/stratage/), which also links to the [package API](https://adrian.tasistro-hart.com/stratage/api/modules.html).
+
+## Cite
+
+The methodology for the age modeling approach implemented by `StratAge` is presented in the following reference:
+
+> Tasistro-Hart, A.R., Ganti, V., and Macdonald, F.A., 2026, Completeness and compensational sedimentation of ANDRILL AND-2A through the Miocene Climate Optimum: Geological Society of America Bulletin, doi:10.1130/B38710.1.
