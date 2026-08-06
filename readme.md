@@ -1,3 +1,7 @@
+> ## **⚠️ This repository has moved to Codeberg at [codeberg.org/sarttiso/stratage](https://codeberg.org/sarttiso/stratage).⚠️**
+> 
+> All future development will occur there. This GitHub repository is archived and read-only.
+
 <img src='https://github.com/sarttiso/stratage/raw/main/graphics/logo.png' alt="Logo for StratAge, featuring a stylized geological stratigraphy on the left with stacked layers in shades of brown and green, and a probabilistic age-depth envelope on the right, with probability distributions corresponding to geochronology overlain." width="200px">
 
 # StratAge
